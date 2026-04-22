@@ -43,7 +43,6 @@ def rdecode_satellite_packet(raw_data):
     
     # Create the Norby object
     packet = Norby(stream)
-    
 
     # Access the attributes in the packet
     print("--- Mission Telemetry Successfully Decoded ---")

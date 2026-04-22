@@ -6,5 +6,5 @@ import subprocess
 # byte_form = response[0]
 # raw_form = response[1]
 # decoded = rdecode_satellite_packet(byte_form)
-fdecode_satellite_packet("backend/storage/raw/packet.bin")
-#subprocess.run(["streamlit", "run", "app/dashboard.py"])
+# fdecode_satellite_packet("backend/storage/raw/packet.bin")
+subprocess.run(["streamlit", "run", "app/app.py"])
