@@ -8,7 +8,7 @@ c = database.cursor()
 c.execute('''
 CREATE TABLE IF NOT EXISTS data(
           ID INTEGER PRIMARY KEY,
-          Station TEXT NOT NULL,
+          Satellite TEXT NOT NULL,
           Main_Bus_Voltage INTEGER,
           Temperature INTEGER,
           Solar_Generation INTEGER
@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS data(
 c.execute('''
 CREATE TABLE IF NOT EXISTS commands(
           ID INTEGER PRIMARY KEY,
-          Station TEXT NOT NULL,
+          Satellite TEXT NOT NULL,
           Command TEXT NOT NULL
 );
 ''') #Prelimnary version

@@ -5,16 +5,16 @@ current_dir = Path(__file__).resolve().parent
 project_root = current_dir.parent.parent
 db_path = project_root / "backend" / "storage" / "data" / "logs.db"
 
-def addEntry(station, v, t, s):
+def addEntry(sat, v, t, s):
     database = sqlite3.connect(db_path)
     c = database.cursor()
     c.execute('''
-        INSERT INTO data (Station, Main_Bus_Voltage, Temperature, Solar_Generation)
+        INSERT INTO data (Satellite, Main_Bus_Voltage, Temperature, Solar_Generation)
               VALUES (?, ?, ?, ?);
-    ''', (station, v, t, s))
+    ''', (sat, v, t, s))
 
     #debug line
-    print(f"Added into data table {station}, {v}, {t}, {s}.")
+    print(f"Added into data table {sat}, {v}, {t}, {s}.")
 
     database.commit()
     database.close()
