@@ -1,10 +1,18 @@
 #Main file to run project from
-from backend.services.decode import fdecode_satellite_packet, rdecode_satellite_packet
 import subprocess
+import os
+import sys
+from pathlib import Path
 
-# response = fd("")
-# byte_form = response[0]
-# raw_form = response[1]
-# decoded = rdecode_satellite_packet(byte_form)
-# fdecode_satellite_packet("backend/storage/raw/packet.bin")
-subprocess.run(["streamlit", "run", "app/app.py"])
+# Get the absolute path to the SMP root
+project_root = str(Path(__file__).resolve().parent)
+
+# Get the current environment variables and add SMP to PYTHONPATH
+env = os.environ.copy()
+env["PYTHONPATH"] = project_root + os.pathsep + env.get("PYTHONPATH", "")
+
+# Launch the subprocess with the updated environment
+subprocess.Popen(
+    ["streamlit", "run", "app/app.py"], 
+    env=env
+)

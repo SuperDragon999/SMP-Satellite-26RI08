@@ -1,23 +1,46 @@
 import sqlite3, datetime
 import pandas as pd
+from pathlib import Path
+current_dir = Path(__file__).resolve().parent
+project_root = current_dir.parent.parent
+db_path = project_root / "backend" / "storage" / "data" / "logs.db"
 
-def addEntry(data, station):
-    database = sqlite3.connect("logs/packet_log.db")
+def addEntry(station, v, t, s):
+    database = sqlite3.connect(db_path)
     c = database.cursor()
+    c.execute('''
+        INSERT INTO data (Station, Main_Bus_Voltage, Temperature, Solar_Generation)
+              VALUES (?, ?, ?, ?);
+    ''', (station, v, t, s))
+
+    #debug line
+    print(f"Added into data table {station}, {v}, {t}, {s}.")
 
     database.commit()
     database.close()
 
-def getData():
-    conn = sqlite3.connect('logs/packet_log.db')
+def readAllData():
+    '''
+    Read everything in data
+    '''
+    conn = sqlite3.connect(db_path)
 
-    df = pd.read_sql_query("""
-    SELECT timestamp, battery
-    FROM telemetry
-    ORDER BY timestamp
+    data = pd.read_sql("""
+    SELECT * FROM data
     """, conn)
 
-    # Convert timestamp
-    df["timestamp"] = pd.to_datetime(df["timestamp"])
+    conn.close()
+    return data
+
+def readAllCmd():
+    '''
+    Read everything in cmd
+    '''
+    conn = sqlite3.connect(db_path)
+
+    data = pd.read_sql("""
+    SELECT * FROM commands
+    """, conn)
 
     conn.close()
+    return data

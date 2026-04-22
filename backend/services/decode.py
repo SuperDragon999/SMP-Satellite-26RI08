@@ -1,6 +1,6 @@
 import io
 from kaitaistruct import KaitaiStream
-from backend.services.sys_kaitai.norby import Norby #Auto created by kaitai struct compiler
+from services.sys_kaitai.norby import Norby #Auto created by kaitai struct compiler
 
 def fdecode_satellite_packet(file_path):
     '''
@@ -14,25 +14,22 @@ def fdecode_satellite_packet(file_path):
         # Create the Norby object
         packet = Norby(stream)
 
-        header = vars(packet.Header)
-        payload = vars(packet.payload)
-        for x,y in header.items():
-            if x[0] == "_":
-                pass
-            else:
-                print(x + ":", y)
-        for x,y in payload.items():
-            if x[0] == "_":
-                pass
-            else:
-                print(x + ":", y)        
+        #Packet debug code below:
+        # header = vars(packet.Header)
+        # payload = vars(packet.payload)
+        # for x,y in header.items():
+        #     if x[0] == "_":
+        #         pass
+        #     else:
+        #         print(x + ":", y)
+        # for x,y in payload.items():
+        #     if x[0] == "_":
+        #         pass
+        #     else:
+        #         print(x + ":", y)        
 
-        # Access the attributes in the packet
-        # print("--- Mission Telemetry Successfully Decoded ---")
-        # print(f"Satellite Name: {packet.payload.brk_title.strip()}")
-        # print(f"Main Bus Voltage: {packet.payload.ses_voltage} mV")
-        # print(f"OBC Temperature: {packet.payload.brk_temp_active} C")
-        # print(f"Solar Generation: {packet.payload.ses_total_generated_power} mW")
+        # Return packet
+        return packet
 
 def rdecode_satellite_packet(raw_data):
     '''
@@ -44,9 +41,5 @@ def rdecode_satellite_packet(raw_data):
     # Create the Norby object
     packet = Norby(stream)
 
-    # Access the attributes in the packet
-    print("--- Mission Telemetry Successfully Decoded ---")
-    print(f"Satellite Name: {packet.payload.brk_title.strip()}")
-    print(f"Main Bus Voltage: {packet.payload.ses_voltage} mV")
-    print(f"OBC Temperature: {packet.payload.brk_temp_active} C")
-    print(f"Solar Generation: {packet.payload.ses_total_generated_power} mW")
+    # Return packet
+    return packet
