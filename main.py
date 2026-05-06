@@ -3,6 +3,7 @@ import subprocess
 import os
 import sys
 from pathlib import Path
+from backend.services.fetch import *
 
 # Get the absolute path to the SMP root
 project_root = str(Path(__file__).resolve().parent)
@@ -11,8 +12,10 @@ project_root = str(Path(__file__).resolve().parent)
 env = os.environ.copy()
 env["PYTHONPATH"] = project_root + os.pathsep + env.get("PYTHONPATH", "")
 
-# Launch the subprocess with the updated environment
+# Launch the subprocess with the updated environment so modules can import from each other easily
 subprocess.Popen(
     ["streamlit", "run", "app/app.py"], 
     env=env
 )
+
+asyncio.run(ingest_data())

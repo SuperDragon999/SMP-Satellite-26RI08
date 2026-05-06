@@ -16,10 +16,9 @@ CREATE TABLE IF NOT EXISTS data(
 ''') #Simple version
 
 c.execute('''
-CREATE TABLE IF NOT EXISTS commands(
+CREATE TABLE IF NOT EXISTS test(
           ID INTEGER PRIMARY KEY,
-          Satellite TEXT NOT NULL,
-          Command TEXT NOT NULL
+          Message TEXT NOT NULL
 );
 ''') #Prelimnary version
 

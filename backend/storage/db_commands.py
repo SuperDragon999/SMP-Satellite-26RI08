@@ -32,14 +32,28 @@ def readAllData():
     conn.close()
     return data
 
-def readAllCmd():
+def addTest(t):
+    database = sqlite3.connect(db_path)
+    c = database.cursor()
+    c.execute('''
+        INSERT INTO test (Message)
+              VALUES (?);
+    ''', (t,))
+
+    #debug line
+    print(f"Added into test table {t}.")
+
+    database.commit()
+    database.close()
+
+def testRead():
     '''
     Read everything in cmd
     '''
     conn = sqlite3.connect(db_path)
 
     data = pd.read_sql("""
-    SELECT * FROM commands
+    SELECT * FROM test
     """, conn)
 
     conn.close()
