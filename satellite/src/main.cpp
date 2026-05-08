@@ -4,19 +4,15 @@
 #define RGB_DATA_PIN 38
 #define RGB_PWR_PIN 39
 
-const char* ssid = "Golden1234";
-const char* password = "chmtebbgnr";
-
 WebSocketsServer webSocket = WebSocketsServer(81);
 
 void setup() {
   Serial.begin(115200);
-  while(!Serial) delay(10);
 
   // Power up the LED rail
   pinMode(RGB_PWR_PIN, OUTPUT);
   digitalWrite(RGB_PWR_PIN, LOW);
-  WiFi.begin(ssid, password);
+  WiFi.begin(WIFI_SSID, WIFI_PASS);
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
     Serial.print(".");
@@ -36,5 +32,7 @@ void loop() {
     webSocket.broadcastTXT("Hello from ESP32!");
     Serial.println("Status: Transmitting...");
     neopixelWrite(RGB_DATA_PIN, 0, 5, 0); //green light to show status
+    delay(10);
+    neopixelWrite(RGB_DATA_PIN, 0, 0, 0);
   }
 }

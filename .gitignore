@@ -3,3 +3,4 @@ venv
 pyvenv.cfg
 .DS_Store
 __pycache__/
+secrets.ini
