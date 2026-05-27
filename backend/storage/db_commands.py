@@ -5,16 +5,16 @@ current_dir = Path(__file__).resolve().parent
 project_root = current_dir.parent.parent
 db_path = project_root / "backend" / "storage" / "data" / "logs.db"
 
-def addEntry(sat, v, t, s):
+def addEntry(id, s, l):
     database = sqlite3.connect(db_path)
     c = database.cursor()
     c.execute('''
-        INSERT INTO data (Satellite, Main_Bus_Voltage, Temperature, Solar_Generation)
-              VALUES (?, ?, ?, ?);
-    ''', (sat, v, t, s))
+        INSERT INTO data (ID, sensor, latency)
+              VALUES (?, ?, ?);
+    ''', (id, s, l))
 
     #debug line
-    print(f"Added into data table {sat}, {v}, {t}, {s}.")
+    print(f"Added into data table {id}, {s}, {l}.")
 
     database.commit()
     database.close()
@@ -32,29 +32,23 @@ def readAllData():
     conn.close()
     return data
 
-def addTest(t):
+def clearData():
+    '''
+    Clear all data
+    '''
+
     database = sqlite3.connect(db_path)
     c = database.cursor()
     c.execute('''
-        INSERT INTO test (Message)
-              VALUES (?);
-    ''', (t,))
-
-    #debug line
-    print(f"Added into test table {t}.")
+        DROP TABLE data;
+    ''')
+    c.execute('''
+    CREATE TABLE IF NOT EXISTS data(
+            ID INTEGER PRIMARY KEY,
+            sensor INTEGER,
+            latency INTEGER
+    );
+    ''')
 
     database.commit()
     database.close()
-
-def testRead():
-    '''
-    Read everything in cmd
-    '''
-    conn = sqlite3.connect(db_path)
-
-    data = pd.read_sql("""
-    SELECT * FROM test
-    """, conn)
-
-    conn.close()
-    return data

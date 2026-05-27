@@ -8,19 +8,10 @@ c = database.cursor()
 c.execute('''
 CREATE TABLE IF NOT EXISTS data(
           ID INTEGER PRIMARY KEY,
-          Satellite TEXT NOT NULL,
-          Main_Bus_Voltage INTEGER,
-          Temperature INTEGER,
-          Solar_Generation INTEGER
+          sensor INTEGER,
+          latency INTEGER
 );
-''') #Simple version
-
-c.execute('''
-CREATE TABLE IF NOT EXISTS test(
-          ID INTEGER PRIMARY KEY,
-          Message TEXT NOT NULL
-);
-''') #Prelimnary version
+''')
 
 database.commit()
 database.close()

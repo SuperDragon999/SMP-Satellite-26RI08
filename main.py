@@ -18,4 +18,4 @@ subprocess.Popen(
     env=env
 )
 
-asyncio.run(ingest_data())
+asyncio.run(stream_telemetry())
