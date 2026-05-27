@@ -5,15 +5,6 @@ During satellite missions, continuous telemetry monitoring is essential for ensu
 <br>
 <h2>Notes: </h2>
 <ul>
-  <li>There is a secrets.ini file in the /satellite folder which needs to be created in order to compile this project. Check below for the exact format.</li>
   <li>Before running, start a Python virtual environment and install all required PIP modules.</li>
   <li>A total of 2 ESP-32 modules are required, and this project is run in VS Code with the PlatformIO extension.</li>
 </ul>
-
-Format of secrets.ini file:
-```
-[secrets]
-build_flags =
-    -D WIFI_SSID=\"XXXX\"
-    -D WIFI_PASS=\"XXXXX\"
-```
