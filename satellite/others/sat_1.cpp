@@ -75,7 +75,7 @@ void loop() {
         
         txData.sourceNodeId = CURRENT_SAT_ID;
         txData.messageId = rxData.messageId; 
-        txData.status = (uint32_t)getReading(); 
+        txData.status = (uint32_t)getReading(); //From Pin 14
         
         if (rxData.commandId == 1) {
             txData.commandId = 2; 

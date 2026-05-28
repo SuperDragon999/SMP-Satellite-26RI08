@@ -18,4 +18,5 @@ subprocess.Popen(
     env=env
 )
 
+#Start Recording Process
 asyncio.run(stream_telemetry())

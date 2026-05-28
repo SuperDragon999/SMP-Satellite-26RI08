@@ -10,7 +10,7 @@ def display():
     st.dataframe(df, hide_index=True)
 
 with st.popover("Clear Data"):
-    st.warning("Are you absolutely sure you want to clear all logged data? This cannot be undone.")
+    st.warning("Are you sure you want to clear all logged data? This cannot be undone.")
 
     if st.button("Yes, clear database", type="primary"):
         clearData()

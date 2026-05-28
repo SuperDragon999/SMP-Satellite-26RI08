@@ -32,6 +32,19 @@ def readAllData():
     conn.close()
     return data
 
+def getData(columns):
+    '''
+    Selectively get columns from data
+    '''
+    conn = sqlite3.connect(db_path)
+    
+    escaped_columns = [f"[{col}]" if " " in col else col for col in columns]
+    column_string = ", ".join(escaped_columns)
+    
+    query = f"SELECT {column_string} FROM data;"
+    data = pd.read_sql(query, conn)
+    return data
+
 def clearData():
     '''
     Clear all data
@@ -52,3 +65,33 @@ def clearData():
 
     database.commit()
     database.close()
+
+def set_record(mode):
+    '''
+    Set recording mode on the satellite network
+    '''
+
+    database = sqlite3.connect(db_path)
+    c = database.cursor()
+    c.execute('''
+    UPDATE ctrl SET record = ?;
+    ''', (1 if mode == 1 else 0,))
+    database.commit()
+    database.close()
+
+def get_record():
+    '''
+    Get recording state
+    '''
+
+    database = sqlite3.connect(db_path)
+    c = database.cursor()
+    c.execute('''
+    SELECT record FROM ctrl LIMIT 1;
+    ''')
+    state = c.fetchone()
+    c.close()
+    database.close()
+    if state[0] == 1:
+        return True
+    return False

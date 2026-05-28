@@ -41,6 +41,7 @@ void OnDataRecv(const uint8_t *mac_addr, const uint8_t *incomingData, int len) {
         if (rxData.sourceNodeId != CURRENT_SAT_ID) {
             rxUpdated = true;
             String json = "{";
+            json += "\"Type\":" + String("\"Packet\"") + ",";
             json += "\"ID\":" + String(rxData.messageId) + ",";
             json += "\"sensor\":" + String(rxData.status) + ",";
             json += "\"latency\":" + String(lastFlightTimeMicros);
@@ -83,14 +84,15 @@ void setup() {
 
     server.begin();
 }
- 
+
+int count = 0;
 void loop() {
     if (Serial) {
         Serial.println("[+] Dual ESP-NOW & HTTP Webserver Ground Station Active.");
         Serial.print("[+] Ground Station Gateway IP Address: ");
         Serial.println(WiFi.softAPIP());
     }
-    txData.messageId = millis();
+    txData.messageId = count;
     txData.sourceNodeId = CURRENT_SAT_ID;
     txData.status = 0; 
     txData.commandId = 1; 
@@ -128,9 +130,15 @@ void loop() {
         } else {
             if (Serial) {
                 Serial.printf("[SAT 2 TX] DROP! Error code: %d\n", lastTxStatus);
+                Serial.println("-----------------------------------------\n");
+                String json = "{\"Type\": \"ERR\",";
+                json += "\"ID\":" + String(count);
+                json += "}";
+                ws.textAll(json);
             }
             neopixelWrite(RGB_DATA_PIN, 10, 0, 0); 
         }
+        count++;
     }
 
     if (rxUpdated) {

@@ -13,5 +13,11 @@ CREATE TABLE IF NOT EXISTS data(
 );
 ''')
 
+c.execute('''
+CREATE TABLE IF NOT EXISTS ctrl(
+          record INTEGER
+);
+''')
+
 database.commit()
 database.close()
