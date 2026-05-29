@@ -27,8 +27,8 @@ st.write("-1 reading means a packet drop.")
 #Graphs of data, ping, etc. go here
 @st.fragment(run_every="1s")
 def showData():
-    df = readAllData()
-    st.bar_chart(df, x="ID", y=["sensor", "latency"])
+    df = getData(["ID", "latency"])
+    st.bar_chart(df, x="ID", y=["latency"])
     df2 = getData(["ID", "latency"])
     st.line_chart(df2, x="ID")
     df3 = getData(["ID", "sensor"])
