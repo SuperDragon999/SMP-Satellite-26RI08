@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import altair as alt
-import plotly.express as px
 from backend.storage.db_commands import *
 
 st.title('Satellite TT&C')
@@ -106,37 +105,70 @@ def metrics():
         height=350
     )
 
-    st.altair_chart(chart, use_container_width=True)
+    st.altair_chart(chart, width="stretch")
     with graphs[0]:
+        st.subheader("MAC Layer Retransmission Histogram")
+        
         categories = ['Base Floor (<1.5μs)', 'Retry Tier 1 (1.5-2.8μs)', 'Retry Tier 2 (2.8-4.5μs)', 'Critical (>4.5μs)']
         counts = [floor_count, retry_1_count, retry_2_count, critical_count]
         colors = ['#10b981', '#f59e0b', '#ef4444', '#7f1d1d']
         
-        hist_df = pd.DataFrame({'Latency Category': categories, 'Packet Count': counts, 'Color': colors})
+        hist_df = pd.DataFrame({
+            'Latency Category': categories, 
+            'Packet Count': counts
+        })
         
-        fig_hist = px.bar(
-            hist_df, 
-            x='Latency Category', 
-            y='Packet Count',
-            color='Latency Category',
-            color_discrete_sequence=colors,
-            template="plotly_dark"
+        # Build the Altair Bar Chart
+        fig_hist = alt.Chart(hist_df).mark_bar().encode(
+            x=alt.X(
+                'Latency Category:N', 
+                title='Latency Category',
+                sort=categories,
+                axis=alt.Axis(labelAngle=0)
+            ),
+            y=alt.Y(
+                'Packet Count:Q', 
+                title='Packet Count'
+            ),
+            color=alt.Color(
+                'Latency Category:N',
+                scale=alt.Scale(domain=categories, range=colors),
+                legend=None
+            ),
+            tooltip=[
+                alt.Tooltip('Latency Category:N', title='Latency Category'),
+                alt.Tooltip('Packet Count:Q', title='Packet Count')
+            ]
+        ).properties(
+            width='container',
+            height=350
         )
-        fig_hist.update_layout(showlegend=False, margin=dict(l=20, r=20, t=20, b=20), height=350)
-        st.plotly_chart(fig_hist, use_container_width=True, key="hist")
+        
+        st.altair_chart(fig_hist, width="stretch", key="satellite_retransmission_altair_histogram")
     with graphs[1]:
-        st.subheader("Discrete Packet-to-Packet Jitter Profile")
-        
-        fig_line = px.line(
-            df, 
-            x='ID', 
-            y='jitter',
-            labels={'ID': 'Frame ID', 'jitter': 'Jitter (μs)'},
-            template="plotly_dark"
+        st.subheader("Packet-to-Packet Jitter Profile")
+        chart = alt.Chart(df).mark_line(color='#38bdf8').encode(
+            x=alt.X(
+                'ID:Q', 
+                title='Frame ID',
+                axis=alt.Axis(format='d', tickMinStep=1),
+                scale=alt.Scale(
+                    domain=[df['ID'].min(), df['ID'].max()],            
+                    clamp=True)
+            ),
+            y=alt.Y(
+                'jitter:Q', 
+                title='Jitter (μs)',
+                scale=alt.Scale(domain=[0, df['jitter'].max()+1000], clamp=True)
+            )
+        ).add_params(
+            scales_selection
+        ).properties(
+            width='container',
+            height=350
         )
-        fig_line.update_traces(marker=dict(size=6, color='#38bdf8', opacity=0.7))
-        fig_line.update_layout(margin=dict(l=20, r=20, t=20, b=20), height=350)
-        st.plotly_chart(fig_line, use_container_width=True, key="jitter")
+
+        st.altair_chart(chart, width="stretch")
 
 @st.fragment(run_every="1s")
 def checkData():
