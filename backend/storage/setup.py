@@ -9,7 +9,8 @@ c.execute('''
 CREATE TABLE IF NOT EXISTS data(
           ID INTEGER PRIMARY KEY,
           sensor INTEGER,
-          latency INTEGER
+          latency INTEGER,
+          type TEXT
 );
 ''')
 

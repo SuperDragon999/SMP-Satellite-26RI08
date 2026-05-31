@@ -71,8 +71,7 @@ void loop() {
         rxFlag = false;
         
         neopixelWrite(RGB_DATA_PIN, 0, 0, 30);
-        delay(60); 
-        
+
         txData.sourceNodeId = CURRENT_SAT_ID;
         txData.messageId = rxData.messageId; 
         txData.status = (uint32_t)getReading(); //From Pin 14
@@ -84,6 +83,7 @@ void loop() {
         }
         
         esp_now_send(satellite2Mac, (uint8_t *) &txData, sizeof(txData));
+        delay(60); 
         
         unsigned long startWait = millis();
         while (!txFlag && (millis() - startWait < 100)) {

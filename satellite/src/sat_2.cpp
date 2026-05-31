@@ -85,7 +85,7 @@ void setup() {
     server.begin();
 }
 
-int count = 0;
+int count = 1;
 void loop() {
     if (Serial) {
         Serial.println("[+] Dual ESP-NOW & HTTP Webserver Ground Station Active.");
@@ -111,9 +111,6 @@ void loop() {
     
     unsigned long startWait = millis();
     while (!txUpdated && (millis() - startWait < 200)) {
-        // Concurrency yield: lets the background Async Web Server process 
-        // HTTP requests smoothly while we poll the radio hardware link!
-        delayMicroseconds(100); 
     }
 
     // Capture precise completion timestamp
@@ -129,7 +126,7 @@ void loop() {
             neopixelWrite(RGB_DATA_PIN, 0, 10, 0); 
         } else {
             if (Serial) {
-                Serial.printf("[SAT 2 TX] DROP! Error code: %d\n", lastTxStatus);
+                Serial.printf("[SAT 2 TX] DROP! Dropped frame: %d\n", count);
                 Serial.println("-----------------------------------------\n");
                 String json = "{\"Type\": \"ERR\",";
                 json += "\"ID\":" + String(count);

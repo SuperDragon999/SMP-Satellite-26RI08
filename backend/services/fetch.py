@@ -16,10 +16,10 @@ async def stream_telemetry():
                         print(f"[+] Received: {message}")
                         data = json.loads(message)
                         if data["Type"] == "Packet":
-                            addEntry(data["ID"], data["sensor"], data["latency"])
+                            addEntry(data["ID"], data["sensor"], data["latency"], "PACKET")
                         elif data["Type"] == "ERR":
-                            print(f"PACKET DROP at packet {data["ID"]}")
-                            addEntry(data["ID"], -1, -1)
+                            print(f"PACKET DROP at packet {data['ID']}")
+                            addEntry(data["ID"], 0, 0, "DROP")
                     else:
                         print(f"[IDLE] Recording is off, no query is being made")
         except (websockets.exceptions.ConnectionClosed, OSError) as e:
