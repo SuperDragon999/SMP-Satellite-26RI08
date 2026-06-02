@@ -38,9 +38,12 @@ async def stream_telemetry(uri):
                 async with websockets.connect(uri) as websocket:
                     print("[+] Connected to ESP32!")
                     async for message in websocket:
-                        print(f"[+] Received: {message}")
-                        data = json.loads(message)
-                        await queue.put(data)
+                        if not await asyncio.to_thread(get_record):
+                            break
+                        else:
+                            print(f"[+] Received: {message}")
+                            data = json.loads(message)
+                            await queue.put(data)
             except (websockets.exceptions.ConnectionClosed, OSError) as e:
                 print(f"[-] Connection lost ({e}). Reconnecting in 3 seconds...")
                 if not await asyncio.to_thread(get_record):

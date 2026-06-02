@@ -23,6 +23,7 @@ esp_now_peer_info_t peerInfo;
 volatile bool txUpdated = false;
 volatile esp_now_send_status_t lastTxStatus;
 volatile bool rxUpdated = false;
+volatile unsigned long endMicros;
 
 // High-resolution diagnostic metric shared with the web endpoint
 volatile unsigned long lastFlightTimeMicros = 0;
@@ -31,6 +32,7 @@ AsyncWebServer server(80);
 AsyncWebSocket ws("/telemetry");
 
 void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
+    endMicros = micros();
     lastTxStatus = status;
     txUpdated = true;
 }
@@ -110,11 +112,9 @@ void loop() {
     esp_now_send(satellite1Mac, (uint8_t *) &txData, sizeof(txData));
     
     unsigned long startWait = millis();
-    while (!txUpdated && (millis() - startWait < 200)) {
-    }
+    while (!txUpdated) {}
 
     // Capture precise completion timestamp
-    unsigned long endMicros = micros();
     lastFlightTimeMicros = endMicros - startMicros;
 
     if (txUpdated) {
@@ -128,11 +128,11 @@ void loop() {
             if (Serial) {
                 Serial.printf("[SAT 2 TX] DROP! Dropped frame: %d\n", count);
                 Serial.println("-----------------------------------------\n");
-                String json = "{\"Type\": \"ERR\",";
-                json += "\"ID\":" + String(count);
-                json += "}";
-                ws.textAll(json);
             }
+            String json = "{\"Type\": \"ERR\",";
+            json += "\"ID\":" + String(count);
+            json += "}";
+            ws.textAll(json);
             neopixelWrite(RGB_DATA_PIN, 10, 0, 0); 
         }
         count++;

@@ -24,11 +24,12 @@ elif state == 1:
 
 total_packets = count("\"PACKET\"", "type") + count("\"DROP\"", "type")
 def metrics():
+    total_packets = count("\"PACKET\"", "type") + count("\"DROP\"", "type")
     avg_latency = getAvg("latency")
     df = get_telemetry_df()
     floor_count = len(df[df['latency'] < 1500])
-    retry_1_count = len(df[(df['latency'] >= 1500) & (df['latency'] < 2800)])
-    retry_2_count = len(df[(df['latency'] >= 2800) & (df['latency'] < 4500)])
+    local_execution_overhead = len(df[(df['latency'] >= 1500) & (df['latency'] < 2300)])
+    retry_2_count = len(df[(df['latency'] >= 2300) & (df['latency'] < 4500)])
     critical_count = len(df[df['latency'] >= 4500])
     
     determinism_index = (floor_count / total_packets) * 100
@@ -109,8 +110,8 @@ def metrics():
     with graphs[0]:
         st.subheader("MAC Layer Retransmission Histogram")
         
-        categories = ['Base Floor (<1.5μs)', 'Retry Tier 1 (1.5-2.8μs)', 'Retry Tier 2 (2.8-4.5μs)', 'Critical (>4.5μs)']
-        counts = [floor_count, retry_1_count, retry_2_count, critical_count]
+        categories = ['Base Floor (<1500μs)', 'OS & Misc. Jitter (1500-2500μs)', '1-2 Retry MAC Recovery Zone (2300-4500μs)', 'Multi-retry Link Degradation (>4500μs)']
+        counts = [floor_count, local_execution_overhead, retry_2_count, critical_count]
         colors = ['#10b981', '#f59e0b', '#ef4444', '#7f1d1d']
         
         hist_df = pd.DataFrame({
@@ -124,7 +125,12 @@ def metrics():
                 'Latency Category:N', 
                 title='Latency Category',
                 sort=categories,
-                axis=alt.Axis(labelAngle=0)
+                axis=alt.Axis(
+                    labelAngle=0,
+                    labelExpr="split(datum.value, ' ')",
+                    labelPadding=10,
+                    labelFontSize=12
+                )
             ),
             y=alt.Y(
                 'Packet Count:Q', 
@@ -140,7 +146,7 @@ def metrics():
                 alt.Tooltip('Packet Count:Q', title='Packet Count')
             ]
         ).properties(
-            width='container',
+            width=600,
             height=350
         )
         
