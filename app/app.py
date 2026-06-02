@@ -7,7 +7,6 @@ pages = {
     "Main": [st.Page("pages/Dashboard.py",  title = "Dashboard", icon = "🛰️")],
     "Data Analysis": [
         st.Page("pages/Logs.py", title="Logs", icon="💻"),
-        st.Page("pages/Packet Inspector.py", title="Packet Inspector", icon="🔍"),
     ]
 }
 

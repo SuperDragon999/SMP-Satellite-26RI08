@@ -3,7 +3,7 @@ import pandas as pd
 import altair as alt
 from backend.storage.db_commands import *
 
-st.title('Satellite TT&C')
+st.title('Inter-satellite Connection Tracking')
 
 state = get_record()
 if state == 0:
@@ -25,93 +25,88 @@ elif state == 1:
 total_packets = count("\"PACKET\"", "type") + count("\"DROP\"", "type")
 def metrics():
     total_packets = count("\"PACKET\"", "type") + count("\"DROP\"", "type")
-    avg_latency = getAvg("latency")
     df = get_telemetry_df()
+    jitter_df = df[df['ID'] != 176]
+
     floor_count = len(df[df['latency'] < 1500])
-    local_execution_overhead = len(df[(df['latency'] >= 1500) & (df['latency'] < 2300)])
-    retry_2_count = len(df[(df['latency'] >= 2300) & (df['latency'] < 4500)])
+    misc_jitter = len(df[(df['latency'] >= 1500) & (df['latency'] < 2300)])
+    recovery_count = len(df[(df['latency'] >= 2300) & (df['latency'] < 4500)])
     critical_count = len(df[df['latency'] >= 4500])
     
-    determinism_index = (floor_count / total_packets) * 100
-    max_jitter = df['jitter'].max()
-    avg_jitter = df['jitter'].mean()
-
+    btp = (floor_count / total_packets) * 100
+    max_jitter = jitter_df['jitter'].max()
+    max_latency = df['latency'].max()
+    min_jitter = jitter_df['jitter'].min()
+    min_latency = df['latency'].min()
+    avg_jitter = jitter_df['jitter'].mean()
+    avg_latency = df['latency'].mean()
     pdr = (1-(count("\"DROP\"", "type") / total_packets))*100
+
+    #Metrics
     with st.container(horizontal=True, gap="medium"):
-        cols = st.columns(4, gap="medium", width=1000)
+        cols = st.columns(6, gap="medium", width=1500)
         with cols[0]:
             st.metric(
                 "Average latency",
                 f"{avg_latency:.1f} μs",
-                width="content",
             )
         with cols[1]:
             st.metric(
                 "Average jitter",
                 f"{avg_jitter:.1f} μs",
-               
-                width = "content"
             )
         with cols[2]:
             st.metric(
-                "Max jitter",
-                f"{max_jitter:.1f} μs"
+                "Min latency",
+                f"{min_latency} μs"
             )
         with cols[3]:
             st.metric(
-                label="Baseline transmission percentage", 
-                value=f"{determinism_index:.1f}%", 
-                help="Percentage of frames completing on the absolute first attempt (<1.5μs)"
+                "Min jitter",
+                f"{min_jitter} μs"
             )
-        cols = st.columns(2, gap="medium", width=500)
+        with cols[4]:
+            st.metric(
+                "Max jitter",
+                f"{max_jitter} μs"
+            )
+        with cols[5]:
+            st.metric(
+                "Max latency",
+                f"{max_latency} μs"
+            )
+        cols = st.columns(3, gap="medium", width=750)
         with cols[0]:
             st.metric(
                 "Packet Delivery Ratio",
                 f"{pdr:.1f} %",
-                width="content",
             )
         with cols[1]:
             st.metric(
                 "Packets logged",
                 f"{total_packets}",
-                width = "content"
+            )
+        with cols[2]:
+            st.metric(
+                label="Baseline transmission percentage", 
+                value=f"{btp:.1f}%", 
+                help="Percentage of frames completing on the absolute first attempt (<1500μs)"
             )
 
-    graphs = st.columns(2, gap="medium")
-    st.subheader("Latency graph")
     df2 = getData(["ID", "latency"])
+    df3 = getData(["ID", "sensor"])
     scales_selection = alt.selection_interval(
         bind='scales', 
         encodings=['x']
     )
 
-    chart = alt.Chart(df2).mark_line(color='#38bdf8').encode(
-        x=alt.X(
-            'ID:Q', 
-            title='Frame ID',
-            axis=alt.Axis(format='d', tickMinStep=1),
-            scale=alt.Scale(
-                domain=[df2['ID'].min(), df2['ID'].max()],            
-                clamp=True)
-        ),
-        y=alt.Y(
-            'latency:Q', 
-            title='Latency (μs)',
-            scale=alt.Scale(domain=[0, 8000], clamp=True)
-        )
-    ).add_params(
-        scales_selection
-    ).properties(
-        width='container',
-        height=350
-    )
-
-    st.altair_chart(chart, width="stretch")
+    #First two graphs at the top
+    graphs = st.columns(2, gap="medium")
     with graphs[0]:
         st.subheader("MAC Layer Retransmission Histogram")
         
         categories = ['Base Floor (<1500μs)', 'OS & Misc. Jitter (1500-2500μs)', '1-2 Retry MAC Recovery Zone (2300-4500μs)', 'Multi-retry Link Degradation (>4500μs)']
-        counts = [floor_count, local_execution_overhead, retry_2_count, critical_count]
+        counts = [floor_count, misc_jitter, recovery_count, critical_count]
         colors = ['#10b981', '#f59e0b', '#ef4444', '#7f1d1d']
         
         hist_df = pd.DataFrame({
@@ -153,19 +148,19 @@ def metrics():
         st.altair_chart(fig_hist, width="stretch", key="satellite_retransmission_altair_histogram")
     with graphs[1]:
         st.subheader("Packet-to-Packet Jitter Profile")
-        chart = alt.Chart(df).mark_line(color='#38bdf8').encode(
+        chart = alt.Chart(jitter_df).mark_line(color='#38bdf8').encode(
             x=alt.X(
                 'ID:Q', 
                 title='Frame ID',
                 axis=alt.Axis(format='d', tickMinStep=1),
                 scale=alt.Scale(
-                    domain=[df['ID'].min(), df['ID'].max()],            
+                    domain=[jitter_df['ID'].min(), jitter_df['ID'].max()],            
                     clamp=True)
             ),
             y=alt.Y(
                 'jitter:Q', 
                 title='Jitter (μs)',
-                scale=alt.Scale(domain=[0, df['jitter'].max()+1000], clamp=True)
+                scale=alt.Scale(domain=[0, jitter_df['jitter'].max()*1.5], clamp=True)
             )
         ).add_params(
             scales_selection
@@ -175,6 +170,54 @@ def metrics():
         )
 
         st.altair_chart(chart, width="stretch")
+
+    #Latency + Sensor reading graph
+    st.subheader("Sensor Readings")
+    chart = alt.Chart(df3).mark_line(color='#38bdf8').encode(
+        x=alt.X(
+            'ID:Q', 
+            title='Frame ID',
+            axis=alt.Axis(format='d', tickMinStep=1),
+            scale=alt.Scale(
+                domain=[df3['ID'].min(), df3['ID'].max()],            
+                clamp=True)
+        ),
+        y=alt.Y(
+            'sensor:Q', 
+            title='Sensor Reading',
+            scale=alt.Scale(domain=[0, df3['sensor'].max()*1.5], clamp=True)
+        )
+    ).add_params(
+        scales_selection
+    ).properties(
+        width='container',
+        height=350
+    )
+    st.altair_chart(chart, width="stretch")
+
+    st.subheader("Latency graph")
+    chart = alt.Chart(df2).mark_line(color='#38bdf8').encode(
+        x=alt.X(
+            'ID:Q', 
+            title='Frame ID',
+            axis=alt.Axis(format='d', tickMinStep=1),
+            scale=alt.Scale(
+                domain=[df2['ID'].min(), df2['ID'].max()],            
+                clamp=True)
+        ),
+        y=alt.Y(
+            'latency:Q', 
+            title='Latency (μs)',
+            scale=alt.Scale(domain=[0, df2['latency'].max()*1.5], clamp=True)
+        )
+    ).add_params(
+        scales_selection
+    ).properties(
+        width='container',
+        height=350
+    )
+    st.altair_chart(chart, width="stretch")    
+
 
 @st.fragment(run_every="1s")
 def checkData():

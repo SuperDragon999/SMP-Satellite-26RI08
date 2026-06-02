@@ -74,16 +74,6 @@ def count(val, column):
     data = pd.read_sql(query, conn)
     return int(data.iloc[0, 0])
 
-def getAvg(column):
-    '''
-    Get average from a column, not inclusive of dropped packets
-    '''
-
-    conn = sqlite3.connect(db_path)
-    query = f"SELECT AVG({column}) FROM data WHERE type != 'DROP';"
-    data = pd.read_sql(query, conn)
-    return float(data.iloc[0, 0])
-
 def get_telemetry_df():
     '''
     Get jitter and latency from data.
@@ -96,7 +86,7 @@ def get_telemetry_df():
             ID,
             latency,
             LAG(latency) OVER (ORDER BY ID) as prev_latency
-        FROM data
+        FROM data WHERE type != 'DROP'
     )
     SELECT 
         ID,
