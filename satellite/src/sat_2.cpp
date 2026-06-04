@@ -104,8 +104,8 @@ void loop() {
     
     txUpdated = false;
     rxUpdated = false;
-    neopixelWrite(RGB_DATA_PIN, 1, 23, 24);
-    delay(100);
+    neopixelWrite(RGB_DATA_PIN, 3, 24, 25); //Cyan light for 80ms for every packet sent
+    delay(80);
     
     // Start high-resolution stopwatch right before pushing packet into the RF pipeline
     unsigned long startMicros = micros();
@@ -124,15 +124,18 @@ void loop() {
             if (Serial) {
                 Serial.printf("[SAT 2 TX] ACK Received! Latency: %lu us\n", lastLatency);
             }
-            unsigned long rxTimeoutAnchorMillis = millis();
-            while (!rxUpdated && (millis() - rxTimeoutAnchorMillis < 150)) {
+            neopixelWrite(RGB_DATA_PIN, 0, 10, 0); //Green for ACK received
+
+            //Wait for response
+            unsigned long rxTimeout = millis();
+            while (!rxUpdated && (millis() - rxTimeout < 150)) {
                 yield();
             }
             if (rxUpdated) {
                 //Received message from SAT 1, print the message (change to JSON packet) to Serial
                 rxUpdated = false;
-                neopixelWrite(RGB_DATA_PIN, 0, 0, 30);
-                
+                neopixelWrite(RGB_DATA_PIN, 0, 0, 10); //Blue light for every packet received
+
                 if (Serial) {
                     Serial.printf("\n<<< [SAT 2 RX] Received Data From Sat [%d] >>>\n", rxData.sourceNodeId);
                     Serial.printf("Telemetry Frame ID: %lu\n", (unsigned long)rxData.messageId); 
@@ -141,6 +144,7 @@ void loop() {
                     Serial.println("-----------------------------------------\n");
                 }
             } else {
+                //ACK Received, but packet got corrupted on the way back
                 if (Serial) {
                     Serial.printf("[SAT 2 TX] ASYM. FAILURE! Frame: %d\n", count);
                     Serial.println("-----------------------------------------\n");
@@ -149,7 +153,7 @@ void loop() {
                 json += "\"ID\":" + String(count);
                 json += "}";
                 ws.textAll(json);
-                neopixelWrite(RGB_DATA_PIN, 10, 0, 0);               
+                neopixelWrite(RGB_DATA_PIN, 10, 0, 0); //Red light for every error           
             }
         } else {
             //lastTxStatus did not succeed as there is no ACK, send an error JSON message
@@ -161,12 +165,11 @@ void loop() {
             json += "\"ID\":" + String(count);
             json += "}";
             ws.textAll(json);
-            neopixelWrite(RGB_DATA_PIN, 10, 0, 0); 
+            neopixelWrite(RGB_DATA_PIN, 10, 0, 0); //Red light for every error  
         }
         count++; //Increase packet count
     }
 
-    neopixelWrite(RGB_DATA_PIN, 0, 0, 0);
     unsigned long exeTime = millis() - loopStart;
     if (exeTime < 1000) {
         delay(1000 - exeTime);
