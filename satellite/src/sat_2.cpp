@@ -1,7 +1,6 @@
 #include <esp_now.h>
 #include <WiFi.h>
 #include <esp_wifi.h>
-#include <ESPAsyncWebServer.h>
 
 #define RGB_DATA_PIN 38
 #define RGB_PWR_PIN 39
@@ -16,20 +15,18 @@ struct SatellitePayload {
     uint32_t commandId;   
 };
 
-SatellitePayload txData;
-SatellitePayload rxData;
+SatellitePayload txData; //txData means data sent from the satellite
+SatellitePayload rxData; //rxData means data received from other satellies
 esp_now_peer_info_t peerInfo;
 
-volatile bool txUpdated = false;
+//volatile bools (because they constantly change)
+volatile bool txUpdated = false; //check if "data sent" status has changed
 volatile esp_now_send_status_t lastTxStatus;
-volatile bool rxUpdated = false;
+volatile bool rxUpdated = false; //check if new data has been received
 volatile unsigned long endMicros;
 
 // High-resolution diagnostic metric shared with the web endpoint
-volatile unsigned long lastFlightTimeMicros = 0;
-
-AsyncWebServer server(80);
-AsyncWebSocket ws("/telemetry");
+volatile unsigned long lastLatency = 0;
 
 void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
     endMicros = micros();
@@ -40,29 +37,27 @@ void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
 void OnDataRecv(const uint8_t *mac_addr, const uint8_t *incomingData, int len) {
     if (len == sizeof(SatellitePayload)) {
         memcpy(&rxData, incomingData, sizeof(SatellitePayload));
-        if (rxData.sourceNodeId != CURRENT_SAT_ID) {
-            rxUpdated = true;
+        if (rxData.commandId == 2 && rxData.sourceNodeId != CURRENT_SAT_ID){ //Ping response (ID = 2), valid packet
+            rxUpdated = true; //new packet received
             String json = "{";
             json += "\"Type\":" + String("\"Packet\"") + ",";
             json += "\"ID\":" + String(rxData.messageId) + ",";
             json += "\"sensor\":" + String(rxData.status) + ",";
-            json += "\"latency\":" + String(lastFlightTimeMicros);
+            json += "\"latency\":" + String(lastLatency);
             json += "}";
-        
-            ws.textAll(json);
+            Serial.println(json);
         }
     }
 }
 
 void setup() {
-    Serial.begin(115200);
+    Serial.begin(921600);
 
     pinMode(RGB_PWR_PIN, OUTPUT);
     digitalWrite(RGB_PWR_PIN, HIGH);
 
-    WiFi.mode(WIFI_AP_STA);
-    WiFi.softAP("Satellite-Ground-Station", ""); 
-    
+    WiFi.mode(WIFI_STA);
+
     esp_wifi_start(); 
     esp_wifi_set_promiscuous(true);
     esp_wifi_set_channel(1, WIFI_SECOND_CHAN_NONE); 
@@ -72,9 +67,6 @@ void setup() {
         return;
     }
 
-    ws.onEvent([](AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType type, void *arg, uint8_t *data, size_t len) {});
-    server.addHandler(&ws);
-
     esp_now_register_send_cb(OnDataSent);
     esp_now_register_recv_cb(OnDataRecv);
     
@@ -83,74 +75,66 @@ void setup() {
     peerInfo.channel = 1;  
     peerInfo.encrypt = false;
     esp_now_add_peer(&peerInfo);
-
-    server.begin();
 }
 
 int count = 1;
 void loop() {
-    if (Serial) {
-        Serial.println("[+] Dual ESP-NOW & HTTP Webserver Ground Station Active.");
-        Serial.print("[+] Ground Station Gateway IP Address: ");
-        Serial.println(WiFi.softAPIP());
-    }
+    unsigned long loopStart = millis();
     txData.messageId = count;
     txData.sourceNodeId = CURRENT_SAT_ID;
     txData.status = 0; 
     txData.commandId = 1; 
-    
-    if (Serial) {
-        Serial.println("\n[SAT 2] Transmitting PING frame...");
-    }
-    
-    neopixelWrite(RGB_DATA_PIN, 30, 30, 0);
-    delay(100);
+
+    txUpdated = false;
+    rxUpdated = false;
+    neopixelWrite(RGB_DATA_PIN, 38, 14, 46); //Pink light for 80ms for every packet sent
+    delay(80);
     
     // Start high-resolution stopwatch right before pushing packet into the RF pipeline
     unsigned long startMicros = micros();
     
+    //Send message
     esp_now_send(satellite1Mac, (uint8_t *) &txData, sizeof(txData));
-    
-    unsigned long startWait = millis();
-    while (!txUpdated) {}
+    while(!txUpdated){
+        yield();
+    }
 
-    // Capture precise completion timestamp
-    lastFlightTimeMicros = endMicros - startMicros;
+    lastLatency = endMicros - startMicros;
 
     if (txUpdated) {
         txUpdated = false;
         if (lastTxStatus == ESP_NOW_SEND_SUCCESS) {
-            if (Serial) {
-                Serial.printf("[SAT 2 TX] ACK Received! Latency: %lu us\n", lastFlightTimeMicros);
+            //Wait for response
+            unsigned long rxTimeout = millis();
+            while (!rxUpdated && (millis() - rxTimeout < 150)) {
+                yield();
             }
-            neopixelWrite(RGB_DATA_PIN, 0, 10, 0); 
+            if (rxUpdated) {
+                //Received message from SAT 1, print the message (change to JSON packet) to Serial
+                rxUpdated = false;
+                neopixelWrite(RGB_DATA_PIN, 0, 15, 0); //Green light for every packet received
+
+            } else {
+                //ACK Received, but packet got corrupted on the way back
+                String json = "{\"Type\": \"ERR\",";
+                json += "\"ID\":" + String(count);
+                json += "}";
+                Serial.println(json);
+                neopixelWrite(RGB_DATA_PIN, 15, 0, 0); //Red light for every error           
+            }
         } else {
-            if (Serial) {
-                Serial.printf("[SAT 2 TX] DROP! Dropped frame: %d\n", count);
-                Serial.println("-----------------------------------------\n");
-            }
+            //lastTxStatus did not succeed as there is no ACK, send an error JSON message
             String json = "{\"Type\": \"ERR\",";
             json += "\"ID\":" + String(count);
             json += "}";
-            ws.textAll(json);
-            neopixelWrite(RGB_DATA_PIN, 10, 0, 0); 
+            Serial.println(json);
+            neopixelWrite(RGB_DATA_PIN, 15, 0, 0); //Red light for every error  
         }
-        count++;
+        count++; //Increase packet count
     }
 
-    if (rxUpdated) {
-        rxUpdated = false;
-        neopixelWrite(RGB_DATA_PIN, 0, 0, 30);
-        
-        if (Serial) {
-            Serial.printf("\n<<< [SAT 2 RX] Received Data From Sat [%d] >>>\n", rxData.sourceNodeId);
-            Serial.printf("Telemetry Frame ID: %lu\n", (unsigned long)rxData.messageId); 
-            Serial.printf("Sat 1 Touch Capacitance Value: %lu\n", (unsigned long)rxData.status);
-            Serial.printf("Response Command ID: %lu\n", (unsigned long)rxData.commandId);
-            Serial.println("-----------------------------------------\n");
-        }
+    unsigned long exeTime = millis() - loopStart;
+    if (exeTime < 1000) {
+        delay(1000 - exeTime);
     }
-
-    neopixelWrite(RGB_DATA_PIN, 0, 0, 0);
-    delay(3000);
 }

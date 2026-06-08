@@ -17,8 +17,8 @@ struct SatellitePayload {
     uint32_t commandId;   
 };
 
-SatellitePayload txData;
-SatellitePayload rxData;
+SatellitePayload txData; //txData means data sent from the satellite
+SatellitePayload rxData; //rxData means data received from other satellies
 esp_now_peer_info_t peerInfo;
 
 volatile bool rxFlag = false;
@@ -45,12 +45,6 @@ void setup() {
     neopixelWrite(RGB_DATA_PIN, 20, 0, 20);
 
     WiFi.mode(WIFI_STA);
-    WiFi.disconnect();
-    
-    esp_wifi_start(); 
-    esp_wifi_set_promiscuous(true);
-    esp_wifi_set_channel(1, WIFI_SECOND_CHAN_NONE); 
-    esp_wifi_set_promiscuous(false);
 
     if (esp_now_init() != ESP_OK) return;
 
@@ -65,7 +59,7 @@ void setup() {
     
     neopixelWrite(RGB_DATA_PIN, 0, 0, 0);
 }
- 
+
 void loop() {
     if (rxFlag) {
         rxFlag = false;
@@ -76,20 +70,17 @@ void loop() {
         txData.messageId = rxData.messageId; 
         txData.status = (uint32_t)getReading(); //From Pin 14
         
-        if (rxData.commandId == 1) {
-            txData.commandId = 2; 
+        if (rxData.commandId == 1) { //commandID = 1 is a ping command
+            txData.commandId = 2; //commandID = 2 means a ping response
         } else {
             txData.commandId = 0; 
         }
         
-        esp_now_send(satellite2Mac, (uint8_t *) &txData, sizeof(txData));
-        delay(60); 
-        
-        unsigned long startWait = millis();
-        while (!txFlag && (millis() - startWait < 100)) {
-            delay(1);
+        txFlag = false;
+        esp_now_send(satellite2Mac, (uint8_t *) &txData, sizeof(txData)); //reply ping
+        while (!txFlag) {
+            yield();
         }
-        
         if (txFlag) {
             txFlag = false;
             if (replyStatus == ESP_NOW_SEND_SUCCESS) {
@@ -102,5 +93,4 @@ void loop() {
         delay(200);
         neopixelWrite(RGB_DATA_PIN, 0, 0, 0);
     }
-    delay(10);
 }

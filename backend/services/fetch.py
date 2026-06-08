@@ -1,5 +1,6 @@
 import asyncio
 import websockets
+import serial_asyncio
 import json
 from backend.storage.db_commands import *
 
@@ -55,3 +56,8 @@ async def stream_telemetry(uri):
         print(f"[-] Recording stopped by user.")
         await queue.join()
         worker_task.cancel()
+
+class 
+
+async def fetchserial():
+    pass
