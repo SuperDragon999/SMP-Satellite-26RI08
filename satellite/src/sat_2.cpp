@@ -104,7 +104,7 @@ void loop() {
     
     txUpdated = false;
     rxUpdated = false;
-    neopixelWrite(RGB_DATA_PIN, 3, 24, 25); //Cyan light for 80ms for every packet sent
+    neopixelWrite(RGB_DATA_PIN, 38, 14, 46); //Cyan light for 80ms for every packet sent
     delay(80);
     
     // Start high-resolution stopwatch right before pushing packet into the RF pipeline
@@ -124,7 +124,6 @@ void loop() {
             if (Serial) {
                 Serial.printf("[SAT 2 TX] ACK Received! Latency: %lu us\n", lastLatency);
             }
-            neopixelWrite(RGB_DATA_PIN, 0, 10, 0); //Green for ACK received
 
             //Wait for response
             unsigned long rxTimeout = millis();
@@ -134,7 +133,7 @@ void loop() {
             if (rxUpdated) {
                 //Received message from SAT 1, print the message (change to JSON packet) to Serial
                 rxUpdated = false;
-                neopixelWrite(RGB_DATA_PIN, 0, 0, 10); //Blue light for every packet received
+                neopixelWrite(RGB_DATA_PIN, 0, 15, 0); //Green light for every packet received
 
                 if (Serial) {
                     Serial.printf("\n<<< [SAT 2 RX] Received Data From Sat [%d] >>>\n", rxData.sourceNodeId);
@@ -153,7 +152,7 @@ void loop() {
                 json += "\"ID\":" + String(count);
                 json += "}";
                 ws.textAll(json);
-                neopixelWrite(RGB_DATA_PIN, 10, 0, 0); //Red light for every error           
+                neopixelWrite(RGB_DATA_PIN, 15, 0, 0); //Red light for every error           
             }
         } else {
             //lastTxStatus did not succeed as there is no ACK, send an error JSON message
@@ -165,7 +164,7 @@ void loop() {
             json += "\"ID\":" + String(count);
             json += "}";
             ws.textAll(json);
-            neopixelWrite(RGB_DATA_PIN, 10, 0, 0); //Red light for every error  
+            neopixelWrite(RGB_DATA_PIN, 15, 0, 0); //Red light for every error  
         }
         count++; //Increase packet count
     }
