@@ -19,5 +19,4 @@ subprocess.Popen(
 )
 
 #Start Recording Process
-uri = "ws://192.168.4.1/telemetry"
-asyncio.run(stream_telemetry(uri))
+asyncio.run(fetchserial())
