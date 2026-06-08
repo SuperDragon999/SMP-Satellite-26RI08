@@ -19,4 +19,4 @@ subprocess.Popen(
 )
 
 #Start Recording Process
-asyncio.run(fetchserial())
+asyncio.run(fetchserial("COM6", 921600))

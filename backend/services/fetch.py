@@ -53,9 +53,7 @@ class SerialJSONProtocol(asyncio.Protocol):
         print("Serial connection lost")
         asyncio.get_event_loop().stop()
 
-async def fetchserial():
-    port = "COM7"
-    baud = 912600
+async def fetchserial(port, baud):
     queue = asyncio.Queue()
 
     worker_task = asyncio.create_task(db_worker(queue))
