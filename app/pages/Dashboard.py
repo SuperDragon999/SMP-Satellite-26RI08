@@ -26,7 +26,9 @@ total_packets = count("\"PACKET\"", "type") + count("\"DROP\"", "type")
 def metrics():
     total_packets = count("\"PACKET\"", "type") + count("\"DROP\"", "type")
     df = get_telemetry_df()
-    jitter_df = df[df['ID'] != 176]
+
+    first_id = df['ID'][0]
+    jitter_df = df[df['ID'] != first_id]
 
     floor_count = len(df[df['latency'] < 1500])
     misc_jitter = len(df[(df['latency'] >= 1500) & (df['latency'] < 2300)])
