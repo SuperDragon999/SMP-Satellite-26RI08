@@ -1,4 +1,4 @@
-import sqlite3, datetime
+import sqlite3
 import pandas as pd
 from pathlib import Path
 current_dir = Path(__file__).resolve().parent
