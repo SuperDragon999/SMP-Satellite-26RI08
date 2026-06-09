@@ -57,7 +57,62 @@ async def stream_telemetry(uri):
         await queue.join()
         worker_task.cancel()
 
-class 
+class SerialConfig:
+    def __init__(self, port="COM5", baudrate=921600):
+        self.port = port
+        self.baudrate = baudrate
+    def handle_json(self,obj):
+        if not get_record():
+            return
+        else:
+            self.queue.put_nowait(obj)
+async def fetchSerial(config: SerialConfig, queue: asyncio.Queue):
+    logged = False
+    while True:
+        if not await asyncio.to_thread(get_record):
+            if not logged:
+                print("[IDLE] Recording is off, no query is being made.")
+                logged = True
+            await asyncio.sleep(0.1)
+            continue
+        worker_task = asyncio.create_task(db_worker(queue))
+        print(f"[+] Connecting to serial port {config.port}")
+        reader, writer = await serial_asyncio.open_serial_connection(
+            url=config.port,
+            baudrate=config.baudrate
+        )
 
-async def fetchserial():
-    pass
+        print("[+] Serial connection established")
+
+        queue = asyncio.Queue()
+        worker_task = asyncio.create_task(db_worker(queue))
+        
+        while await asyncio.to_thread(get_record):
+            try:
+                raw = await reader.readline()
+                line = raw.decode("utf-8").strip() 
+                if not line:
+                    continue
+                try:
+                    print(f"[SERIAL] {line}")
+                    if not await asyncio.to_thread(get_record):
+                        break
+                    else:
+                        packet = json.loads(line)
+                        await queue.put(packet)
+                except json.JSONDecodeError:
+                    print(f"[-] Invalid JSON packet: {line}")
+                    await queue.join()
+                    worker_task.cancel()
+            except Exception as e:
+                    print(f"[-] Serial connection error: {e}")
+                    print("[*] Reconnecting in 3 seconds...")
+                    if not await asyncio.to_thread(get_record):
+                        break
+                    await asyncio.sleep(3)
+            finally:
+                logged = False
+        
+        print(f"[-] Recording stopped by user.")
+        await queue.join()
+        worker_task.cancel()
