@@ -12,6 +12,6 @@ subprocess.Popen(["streamlit","run","app/app.py"],
 env=env
 )
 
-config=SerialConfig()
+config=SerialConfig("COM7", 921600)
 queue = asyncio.Queue()
 asyncio.run(fetchSerial(config, queue))

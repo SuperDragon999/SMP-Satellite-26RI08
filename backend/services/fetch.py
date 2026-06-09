@@ -112,7 +112,7 @@ async def stream_telemetry(uri):
         worker_task.cancel()
 
 class SerialConfig:
-    def __init__(self, port="COM5", baudrate=921600):
+    def __init__(self, port, baudrate):
         self.port = port
         self.baudrate = baudrate
     def handle_json(self,obj):

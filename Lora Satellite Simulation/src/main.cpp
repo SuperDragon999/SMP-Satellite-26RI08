@@ -1,91 +1,93 @@
 #include <Arduino.h>
 #include <RadioLib.h>
-
-#define XPOWERS_CHIP_AXP192
+#include <TinyGPS++.h>
 #include <XPowersLib.h>
 
-XPowersPMU PMU;
+struct __attribute__((packed)) TelemetryPacket {
+    uint32_t packetId;
+    float latitude;
+    float longitude;
+    float altitude;
+    uint8_t satellites;
+    int16_t txPower;
+};
 
-#define LORA_SCK   5
-#define LORA_MISO  19
-#define LORA_MOSI  27
-#define LORA_CS    18
-#define LORA_RST   23
-#define LORA_DIO0  26
-#define LORA_DIO1  33
+SX1278 radio = new Module(18, 26, 23, 33);
+TinyGPSPlus gps;
+HardwareSerial gpsSerial(1);
+XPowersAXP2101 powerManager;
 
-SX1278 radio = new Module(LORA_CS, LORA_DIO0, LORA_RST, LORA_DIO1);
+uint32_t msgCounter = 0;
 
 void initPowerManagement() {
-    Wire.begin(21, 22); 
-    
-    if (!PMU.begin(Wire, AXP192_SLAVE_ADDRESS, 21, 22)) {
-        Serial.println("Failed to find AXP192 Power Management Unit!");
+    Wire.begin(21, 22);
+    if (!powerManager.begin(Wire, AXP2101_SLAVE_ADDRESS, 21, 22)) {
+        Serial.println("Failed to initialize PMIC!");
         while (1);
     }
-
-    PMU.setDCDC1Voltage(3300);
-
-    PMU.setLDO2Voltage(3300); 
-    PMU.enableLDO2();         
-
-    PMU.setLDO3Voltage(3300); 
-    PMU.enableLDO3();         
-
-    Serial.println("AXP192 PMU initialized. LoRa power rail is active.");
+    
+    powerManager.setALDO2Voltage(3100); 
+    powerManager.enableALDO2();
+    
+    powerManager.setBLDO1Voltage(3300); 
+    powerManager.enableBLDO1();
 }
 
 void setup() {
     Serial.begin(115200);
-    while (!Serial);
-
-    initPowerManagement();
-
-    SPI.begin(LORA_SCK, LORA_MISO, LORA_MOSI, LORA_CS);
-
-    Serial.print("Initializing LoRa transceiver... ");
+    while (!Serial); 
     
-    float frequency = 433.0;    
-    float bandwidth = 125.0;    
-    uint8_t spreadingFactor = 9; 
-    uint8_t codingRate = 7;     
-    uint8_t syncWord = 0x12;    
-    int8_t power = 17;          
-
-    int state = radio.begin(frequency, bandwidth, spreadingFactor, codingRate, syncWord, power);
-
+    Serial.println(F("\n--- T-BEAM V1.2 STREAMLINED GPS SENDER ---"));
+    
+    initPowerManagement();
+    
+    gpsSerial.begin(9600, SERIAL_8N1, 34, 12);
+    
+    Serial.print(F("[SX1278] Initializing RadioLib ... "));
+    int state = radio.begin(433.0, 125.0, 9, 7, RADIOLIB_SX127X_SYNC_WORD, 17, 8, 0);
     if (state == RADIOLIB_ERR_NONE) {
-        Serial.println("Success!");
+        Serial.println(F("success!"));
     } else {
-        Serial.print("Failed with state code: ");
+        Serial.print(F("failed, code "));
         Serial.println(state);
         while (1);
     }
+    
+    Serial.println(F("System active. Waiting for outdoor satellite fix to begin transmitting..."));
+    Serial.println(F("-------------------------------------------------------------------------"));
 }
 
-int packetCounter = 0;
-
 void loop() {
-    Serial.print("Transmitting telemetry packet [");
-    Serial.print(packetCounter);
-    Serial.println("]...");
-
-    String message = "Telemetry Packet #" + String(packetCounter);
-
-    int state = radio.transmit(message.c_str());
-
-    if (state == RADIOLIB_ERR_NONE) {
-        Serial.println("Transmission completed successfully!");
-        Serial.print("Data rate achieved: ");
-        Serial.print(radio.getDataRate());
-        Serial.println(" bps");
-    } else if (state == RADIOLIB_ERR_TX_TIMEOUT) {
-        Serial.println("Timeout occurred during transmission!");
-    } else {
-        Serial.print("Transmission failed, error code: ");
-        Serial.println(state);
+    while (gpsSerial.available() > 0) {
+        gps.encode(gpsSerial.read());
     }
 
-    packetCounter++;
-    delay(5000); 
+    static uint32_t lastTxTime = 0;
+    if (millis() - lastTxTime > 5000) { 
+        lastTxTime = millis();
+
+        if (gps.location.isValid()) {
+            TelemetryPacket packet;
+            packet.packetId = msgCounter++;
+            packet.latitude = (float)gps.location.lat();
+            packet.longitude = (float)gps.location.lng();
+            packet.altitude = (float)gps.altitude.meters();
+            packet.satellites = (uint8_t)gps.satellites.value();
+            packet.txPower = 17; 
+
+            Serial.printf("[GPS FIX ACCQUIRED] Lat: %.6f | Lng: %.6f | Sats: %d\n", 
+                          packet.latitude, packet.longitude, packet.satellites);
+            
+            Serial.print(F("[SX1278] Transmitting LoRa Packet... "));
+            int state = radio.transmit((uint8_t*)&packet, sizeof(TelemetryPacket));
+
+            if (state == RADIOLIB_ERR_NONE) {
+                Serial.println(F("SUCCESS!"));
+            } else {
+                Serial.printf("FAILED (RadioLib Code: %d)\n", state);
+            }
+        } else {
+            Serial.printf("[STATUS] Searching for sky... Satellites in view: %d\n", gps.satellites.value());
+        }
+    }
 }
