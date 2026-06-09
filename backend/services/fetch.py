@@ -19,6 +19,60 @@ async def db_worker(queue):
         finally:
             queue.task_done()
 
+class SerialJSONProtocol(asyncio.Protocol):
+    def __init__(self, queue):
+        self.buffer = ""
+        self.queue = queue
+
+    def connection_made(self, transport):
+        self.transport = transport
+        print("Serial connection established!")
+
+    def data_received(self, data):
+        text = data.decode(errors="ignore")
+        self.buffer += text
+
+        while "\n" in self.buffer:
+            line, self.buffer = self.buffer.split("\n", 1)
+            line = line.strip()
+
+            if not line:
+                continue
+            try:
+                obj = json.loads(line)
+                self.handle_json(obj)
+            except json.JSONDecodeError:
+                print("Bad JSON:", line)
+    def handle_json(self, obj):
+        if not get_record():
+            return
+        else:
+            self.queue.put_nowait(obj)
+
+    def connection_lost(self, exc):
+        print("Serial connection lost")
+        asyncio.get_event_loop().stop()
+
+async def fetchserial(port, baud):
+    queue = asyncio.Queue()
+
+    worker_task = asyncio.create_task(db_worker(queue))
+
+    loop = asyncio.get_running_loop()
+
+    def protocol_factory():
+        return SerialJSONProtocol(queue)
+
+    await serial_asyncio.create_serial_connection(
+        loop,
+        protocol_factory,
+        port,
+        baudrate=baud
+    )
+
+    await worker_task
+
+#Websocket async monitor
 async def stream_telemetry(uri):
     print(f"[+] Connecting to ground station at {uri}...")
     logged = False

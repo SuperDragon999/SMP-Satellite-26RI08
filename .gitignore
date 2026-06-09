@@ -1,6 +1,6 @@
 # Created by venv; see https://docs.python.org/3/library/venv.html
 venv
-logs.db
+backend/storage/data
 pyvenv.cfg
 .DS_Store
 __pycache__/

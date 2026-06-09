@@ -39,19 +39,19 @@ void OnDataRecv(const uint8_t *mac_addr, const uint8_t *incomingData, int len) {
         memcpy(&rxData, incomingData, sizeof(SatellitePayload));
         if (rxData.commandId == 2 && rxData.sourceNodeId != CURRENT_SAT_ID){ //Ping response (ID = 2), valid packet
             rxUpdated = true; //new packet received
-            String json = "{";
-            json += "\"Type\":" + String("\"Packet\"") + ",";
-            json += "\"ID\":" + String(rxData.messageId) + ",";
-            json += "\"sensor\":" + String(rxData.status) + ",";
-            json += "\"latency\":" + String(lastLatency);
-            json += "}";
-            Serial.println(json);
+            // String json = "{";
+            // json += "\"Type\":" + String("\"Packet\"") + ",";
+            // json += "\"ID\":" + String(rxData.messageId) + ",";
+            // json += "\"sensor\":" + String(rxData.status) + ",";
+            // json += "\"latency\":" + String(lastLatency);
+            // json += "}";
+            // Serial.println(json);
         }
     }
 }
 
 void setup() {
-    Serial.begin(921600);
+    Serial.begin(912600);
 
     pinMode(RGB_PWR_PIN, OUTPUT);
     digitalWrite(RGB_PWR_PIN, HIGH);
@@ -113,20 +113,32 @@ void loop() {
                 //Received message from SAT 1, print the message (change to JSON packet) to Serial
                 rxUpdated = false;
                 neopixelWrite(RGB_DATA_PIN, 0, 15, 0); //Green light for every packet received
+                char json[128];
 
+                snprintf(json, sizeof(json),
+                "{\"Type\":\"Packet\",\"ID\":%d,\"sensor\":%d,\"latency\":%ld}",
+                rxData.messageId,
+                rxData.status,
+                lastLatency);
+
+                Serial.println(json);
             } else {
                 //ACK Received, but packet got corrupted on the way back
-                String json = "{\"Type\": \"ERR\",";
-                json += "\"ID\":" + String(count);
-                json += "}";
+                char json[64];
+                snprintf(json, sizeof(json),
+                "{\"Type\":\"ERR\",\"ID\":%d}",
+                count);
+
                 Serial.println(json);
                 neopixelWrite(RGB_DATA_PIN, 15, 0, 0); //Red light for every error           
             }
         } else {
             //lastTxStatus did not succeed as there is no ACK, send an error JSON message
-            String json = "{\"Type\": \"ERR\",";
-            json += "\"ID\":" + String(count);
-            json += "}";
+            char json[64];
+            snprintf(json, sizeof(json),
+            "{\"Type\":\"ERR\",\"ID\":%d}",
+            count);
+
             Serial.println(json);
             neopixelWrite(RGB_DATA_PIN, 15, 0, 0); //Red light for every error  
         }
