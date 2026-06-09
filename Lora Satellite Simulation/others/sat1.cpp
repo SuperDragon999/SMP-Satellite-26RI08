@@ -1,7 +1,9 @@
+//SAT-1 IS ALWAYS THE ONE RECEIVING SIGNALS AND RESPONDING TO THE PING
 #include <SPI.h>
 #include <RadioLib.h>
 #define XPOWERS_CHIP_AXP2101
 #include <XPowersLib.h> // Required for powering the LoRa chip
+#include "touch_sensor.h"
 
 #define CURRENT_SAT_ID 2
 

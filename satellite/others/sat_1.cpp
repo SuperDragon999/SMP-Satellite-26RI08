@@ -50,7 +50,7 @@ void setup() {
 
     esp_wifi_start(); 
     esp_wifi_set_promiscuous(true);
-    esp_wifi_set_channel(8, WIFI_SECOND_CHAN_NONE); 
+    esp_wifi_set_channel(8, WIFI_SECOND_CHAN_NONE); //this line
     esp_wifi_set_promiscuous(false);
 
     if (esp_now_init() != ESP_OK) {
@@ -62,7 +62,7 @@ void setup() {
     
     memset(&peerInfo, 0, sizeof(peerInfo));
     memcpy(peerInfo.peer_addr, satellite2Mac, 6);
-    peerInfo.channel = 8;  
+    peerInfo.channel = 8; //this line
     peerInfo.encrypt = false;
     esp_now_add_peer(&peerInfo);
     

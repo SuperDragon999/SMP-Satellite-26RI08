@@ -1,3 +1,4 @@
+//SAT-2 IS ALWAYS THE ONE SENDING PINGS
 #include <SPI.h>
 #include <RadioLib.h>
 #define XPOWERS_CHIP_AXP2101

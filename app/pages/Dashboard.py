@@ -150,28 +150,31 @@ def metrics():
         st.altair_chart(fig_hist, width="stretch", key="satellite_retransmission_altair_histogram")
     with graphs[1]:
         st.subheader("Packet-to-Packet Jitter Profile")
-        chart = alt.Chart(jitter_df).mark_line(color='#38bdf8').encode(
-            x=alt.X(
-                'ID:Q', 
-                title='Frame ID',
-                axis=alt.Axis(format='d', tickMinStep=1),
-                scale=alt.Scale(
-                    domain=[jitter_df['ID'].min(), jitter_df['ID'].max()],            
-                    clamp=True)
-            ),
-            y=alt.Y(
-                'jitter:Q', 
-                title='Jitter (μs)',
-                scale=alt.Scale(domain=[0, jitter_df['jitter'].max()*1.5], clamp=True)
+        if total_packets >= 1:
+            chart = alt.Chart(jitter_df).mark_line(color='#38bdf8').encode(
+                x=alt.X(
+                    'ID:Q', 
+                    title='Frame ID',
+                    axis=alt.Axis(format='d', tickMinStep=1),
+                    scale=alt.Scale(
+                        domain=[jitter_df['ID'].min(), jitter_df['ID'].max()],            
+                        clamp=True)
+                ),
+                y=alt.Y(
+                    'jitter:Q', 
+                    title='Jitter (μs)',
+                    scale=alt.Scale(domain=[0, jitter_df['jitter'].max()*1.5], clamp=True)
+                )
+            ).add_params(
+                scales_selection
+            ).properties(
+                width='container',
+                height=350
             )
-        ).add_params(
-            scales_selection
-        ).properties(
-            width='container',
-            height=350
-        )
 
-        st.altair_chart(chart, width="stretch")
+            st.altair_chart(chart, width="stretch")
+        else:
+            st.info("No data available yet.")
 
     #Latency + Sensor reading graph
     st.subheader("Sensor Readings")
