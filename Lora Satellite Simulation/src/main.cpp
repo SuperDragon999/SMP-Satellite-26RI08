@@ -1,93 +1,166 @@
-#include <Arduino.h>
+#include <SPI.h>
 #include <RadioLib.h>
-#include <TinyGPS++.h>
-#include <XPowersLib.h>
+#define XPOWERS_CHIP_AXP2101
+#include <XPowersLib.h> // Required for powering the LoRa chip on T-Beam v1.2
 
-struct __attribute__((packed)) TelemetryPacket {
-    uint32_t packetId;
-    float latitude;
-    float longitude;
-    float altitude;
-    uint8_t satellites;
-    int16_t txPower;
+#define CURRENT_SAT_ID 1
+
+// T-Beam V1.2 LoRa Pin Definitions
+#define LORA_SCK   5
+#define LORA_MISO  19
+#define LORA_MOSI  27
+#define LORA_SS    18
+#define LORA_RST   23
+#define LORA_DIO0  26
+
+#define LORA_FREQ  433.0
+#define SYNC_WORD  0x12
+
+XPowersPMU PMU;
+
+struct SatellitePayload {
+    uint8_t sourceNodeId;
+    uint32_t messageId;
+    uint32_t status;
+    uint32_t commandId;
 };
 
-SX1278 radio = new Module(18, 26, 23, 33);
-TinyGPSPlus gps;
-HardwareSerial gpsSerial(1);
-XPowersAXP2101 powerManager;
+SX1278 radio = new Module(
+    LORA_SS,
+    LORA_DIO0,
+    LORA_RST,
+    RADIOLIB_NC
+);
 
-uint32_t msgCounter = 0;
+volatile bool receivedFlag = false;
 
-void initPowerManagement() {
-    Wire.begin(21, 22);
-    if (!powerManager.begin(Wire, AXP2101_SLAVE_ADDRESS, 21, 22)) {
-        Serial.println("Failed to initialize PMIC!");
-        while (1);
-    }
-    
-    powerManager.setALDO2Voltage(3100); 
-    powerManager.enableALDO2();
-    
-    powerManager.setBLDO1Voltage(3300); 
-    powerManager.enableBLDO1();
+#if defined(ESP32) || defined(ESP8266)
+  ICACHE_RAM_ATTR
+#endif
+void setFlag() {
+    receivedFlag = true;
 }
 
-void setup() {
-    Serial.begin(115200);
-    while (!Serial); 
-    
-    Serial.println(F("\n--- T-BEAM V1.2 STREAMLINED GPS SENDER ---"));
-    
-    initPowerManagement();
-    
-    gpsSerial.begin(9600, SERIAL_8N1, 34, 12);
-    
-    Serial.print(F("[SX1278] Initializing RadioLib ... "));
-    int state = radio.begin(433.0, 125.0, 9, 7, RADIOLIB_SX127X_SYNC_WORD, 17, 8, 0);
-    if (state == RADIOLIB_ERR_NONE) {
-        Serial.println(F("success!"));
-    } else {
-        Serial.print(F("failed, code "));
-        Serial.println(state);
-        while (1);
+void initPMU() {
+    if (!PMU.begin(Wire, AXP2101_SLAVE_ADDRESS, 21, 22)) {
+        Serial.println("Failed to find AXP2101 PMU");
+        while (1) delay(1000);
     }
     
-    Serial.println(F("System active. Waiting for outdoor satellite fix to begin transmitting..."));
-    Serial.println(F("-------------------------------------------------------------------------"));
+    // Power up the SX1278 Radio
+    PMU.setALDO2Voltage(3300); // 3.3V
+    PMU.enableALDO2();
+    Serial.println("AXP2101 PMU Ready - LoRa Powered On");
+}
+
+void setupRadio() {
+    Serial.print("Initializing Radio... ");
+    int state = radio.begin(
+        LORA_FREQ,
+        125.0,
+        7,
+        5,
+        SYNC_WORD,
+        17,
+        8,
+        0
+    );
+
+    if (state != RADIOLIB_ERR_NONE) {
+        Serial.print("failed, code: ");
+        Serial.println(state);
+        while (true) delay(1000);
+    }
+    Serial.println("success!");
+
+    radio.setDio0Action(setFlag, RISING);
+    radio.startReceive();
+}
+
+SatellitePayload txData;
+SatellitePayload rxData;
+int count = 0;
+
+void setup() {
+    Serial.begin(921600);
+
+    Serial.println("System starting...");
+
+    // Initialize I2C pins for the power management chip
+    Wire.begin(21, 22); 
+    Serial.println("I2C bus initialized.");
+
+    // Initialize Power Management Chip
+    initPMU(); 
+    Serial.println("PMU configured.");
+
+    // Initialize SPI for LoRa
+    SPI.begin(LORA_SCK, LORA_MISO, LORA_MOSI, LORA_SS);
+    Serial.println("SPI bus initialized.");
+
+    // Setup RadioLib
+    setupRadio();
+    Serial.println("Radio interface ready.");
 }
 
 void loop() {
-    while (gpsSerial.available() > 0) {
-        gps.encode(gpsSerial.read());
+    txData.sourceNodeId = CURRENT_SAT_ID;
+    txData.messageId = count;
+    txData.status = 0;
+    txData.commandId = 1; // PING
+
+    Serial.print("Sending PING #");
+    Serial.println(count);
+
+    unsigned long start = micros();
+
+    // 1. Transmit packet (blocking call)
+    int txState = radio.transmit((uint8_t*)&txData, sizeof(txData));
+    if (txState != RADIOLIB_ERR_NONE) {
+        Serial.print("Transmit failed, code: ");
+        Serial.println(txState);
     }
 
-    static uint32_t lastTxTime = 0;
-    if (millis() - lastTxTime > 5000) { 
-        lastTxTime = millis();
+    // 2. CRITICAL: Clear the flag because transmit just tripped DIO0 high!
+    receivedFlag = false; 
 
-        if (gps.location.isValid()) {
-            TelemetryPacket packet;
-            packet.packetId = msgCounter++;
-            packet.latitude = (float)gps.location.lat();
-            packet.longitude = (float)gps.location.lng();
-            packet.altitude = (float)gps.altitude.meters();
-            packet.satellites = (uint8_t)gps.satellites.value();
-            packet.txPower = 17; 
+    // 3. Put radio in receive mode to listen for the echo
+    radio.startReceive();
 
-            Serial.printf("[GPS FIX ACCQUIRED] Lat: %.6f | Lng: %.6f | Sats: %d\n", 
-                          packet.latitude, packet.longitude, packet.satellites);
-            
-            Serial.print(F("[SX1278] Transmitting LoRa Packet... "));
-            int state = radio.transmit((uint8_t*)&packet, sizeof(TelemetryPacket));
+    unsigned long timeout = millis();
+    bool replied = false;
+
+    // Wait up to 150ms for a response
+    while (millis() - timeout < 150) {
+        if (receivedFlag) {
+            receivedFlag = false; // Reset flag for next time
+
+            int state = radio.readData((uint8_t*)&rxData, sizeof(rxData));
 
             if (state == RADIOLIB_ERR_NONE) {
-                Serial.println(F("SUCCESS!"));
+                // Validate it's the response matching our message ID
+                if (rxData.commandId == 2 && rxData.messageId == txData.messageId) {
+                    unsigned long latency = micros() - start;
+                    Serial.print("-> ACK RECEIVED! Round-trip Latency: ");
+                    Serial.print(latency);
+                    Serial.println(" us");
+                    replied = true;
+                    break; 
+                }
             } else {
-                Serial.printf("FAILED (RadioLib Code: %d)\n", state);
+                Serial.print("Read error during window: ");
+                Serial.println(state);
             }
-        } else {
-            Serial.printf("[STATUS] Searching for sky... Satellites in view: %d\n", gps.satellites.value());
+
+            // If it wasn't the packet we wanted, resume listening
+            radio.startReceive();
         }
     }
+
+    if (!replied) {
+        Serial.println("-> TIMEOUT: No response from SAT2");
+    }
+
+    count++;
+    delay(1000); // Wait 1 second before next ping
 }
