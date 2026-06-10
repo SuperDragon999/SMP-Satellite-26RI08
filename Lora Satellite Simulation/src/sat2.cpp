@@ -19,11 +19,11 @@
 XPowersPMU PMU;
 
 struct SatellitePayload {
-    uint8_t sourceNodeId;
-    uint32_t messageId;
-    uint32_t status;
-    uint32_t commandId;
-};
+    uint8_t sourceNodeId;   // 1 byte
+    uint32_t messageId;     // 4 bytes
+    uint32_t status;        // 4 bytes
+    uint32_t commandId;     // 4 bytes
+};                          // Total: 13 bytes
 
 SX1278 radio = new Module(
     LORA_SS,
@@ -105,28 +105,28 @@ void loop() {
         int state = radio.readData((uint8_t*)&rxData, sizeof(rxData));
 
         if (state == RADIOLIB_ERR_NONE) {
+            // Ensure we aren't talking to ourselves
             if (rxData.sourceNodeId != CURRENT_SAT_ID) {
                 
-                // 2. IMMEDIATE LINK-LAYER ACK (1 byte)
-                uint8_t ackByte = 0xAC; 
-                radio.transmit(&ackByte, 1); 
-
-                // 3. PREPARE & SEND APPLICATION RESPONSE (13 bytes)
+                // 2. PREPARE COMBINED RESPONSE (Acts as both ACK and Data)
                 txData.sourceNodeId = CURRENT_SAT_ID;
-                txData.messageId = rxData.messageId;
-                txData.status = 123; // Your data
+                txData.messageId = rxData.messageId; // Proves we received their exact packet
+                txData.status = 123;                 // Telemetry data
                 txData.commandId = (rxData.commandId == 1) ? 2 : 0;
-
-                // Brief window to let Node 1 settle back into RX mode
-                delay(5); 
                 
-                radio.transmit((uint8_t*)&txData, sizeof(txData));
+                // Send everything in one single clean burst
+                int txState = radio.transmit((uint8_t*)&txData, sizeof(txData));
                 
-                Serial.println("Data RX -> ACK sent -> App Response sent.");
+                if (txState == RADIOLIB_ERR_NONE) {
+                    Serial.println("Combined ACK & Data Response sent successfully.");
+                } else {
+                    Serial.print("TX failed, code: ");
+                    Serial.println(txState);
+                }
             }
         }
         
-        // Return to listening mode
+        // Always make sure the radio drops back into listening mode
         radio.startReceive();
     }
 }
