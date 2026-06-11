@@ -36,7 +36,7 @@ void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
 void OnDataRecv(const uint8_t *mac_addr, const uint8_t *incomingData, int len) {
     if (len == sizeof(SatellitePayload)) {
         memcpy(&rxData, incomingData, sizeof(SatellitePayload));
-        if (rxData.commandId == 2 && rxData.sourceNodeId != CURRENT_SAT_ID){ //Ping response (ID = 2), valid packet
+        if (rxData.commandId == 2 && rxData.sourceNodeId != CURRENT_SAT_ID && rxData.messageId == txData.messageId){ //Ping response (ID = 2), valid packet
             rxUpdated = true; //new packet received
             endMicros = micros();
         }
@@ -92,8 +92,6 @@ void loop() {
         yield();
     }
 
-    lastLatency = endMicros - startMicros;
-
     if (txUpdated) {
         txUpdated = false;
         if (lastTxStatus == ESP_NOW_SEND_SUCCESS) {
@@ -105,11 +103,12 @@ void loop() {
             if (rxUpdated) {
                 //Received message from SAT 1, print the message (change to JSON packet) to Serial
                 rxUpdated = false;
+                lastLatency = endMicros - startMicros;
                 neopixelWrite(RGB_DATA_PIN, 0, 15, 0); //Green light for every packet received
                 char json[128];
 
                 snprintf(json, sizeof(json),
-                "{\"Type\":\"Packet\",\"ID\":%d,\"sensor\":%d,\"latency\":%ld}",
+                "{\"Type\":\"Packet\",\"ID\":%d,\"sensor\":%d,\"latency\":%lu}",
                 rxData.messageId,
                 rxData.status,
                 lastLatency);
