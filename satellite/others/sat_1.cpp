@@ -99,7 +99,6 @@ void loop() {
             }
         }
         
-        delay(200);
         neopixelWrite(RGB_DATA_PIN, 0, 0, 0);
     }
 }

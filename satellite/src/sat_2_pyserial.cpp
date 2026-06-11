@@ -38,7 +38,6 @@ void OnDataRecv(const uint8_t *mac_addr, const uint8_t *incomingData, int len) {
         memcpy(&rxData, incomingData, sizeof(SatellitePayload));
         if (rxData.commandId == 2 && rxData.sourceNodeId != CURRENT_SAT_ID && rxData.messageId == txData.messageId){ //Ping response (ID = 2), valid packet
             rxUpdated = true; //new packet received
-            endMicros = micros();
         }
     }
 }
@@ -89,7 +88,6 @@ void loop() {
     //Send message
     esp_now_send(satellite1Mac, (uint8_t *) &txData, sizeof(txData));
     while(!txUpdated){
-        yield();
     }
 
     if (txUpdated) {
@@ -98,10 +96,10 @@ void loop() {
             //Wait for response
             unsigned long rxTimeout = millis();
             while (!rxUpdated && (millis() - rxTimeout < 150)) {
-                yield();
             }
             if (rxUpdated) {
                 //Received message from SAT 1, print the message (change to JSON packet) to Serial
+                endMicros = micros();
                 rxUpdated = false;
                 lastLatency = endMicros - startMicros;
                 neopixelWrite(RGB_DATA_PIN, 0, 15, 0); //Green light for every packet received
