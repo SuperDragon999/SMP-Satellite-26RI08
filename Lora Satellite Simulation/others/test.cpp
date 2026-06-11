@@ -1,3 +1,4 @@
+//Code to test out the Serial Monitor
 #include <Arduino.h>
 
 void setup(){

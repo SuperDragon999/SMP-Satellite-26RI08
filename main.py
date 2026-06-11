@@ -12,6 +12,11 @@ subprocess.Popen(["streamlit","run","app/app.py"],
 env=env
 )
 
-config=SerialConfig("COM7", 921600)
+#Pyserial Code
+config=SerialConfig("COM9", 921600)
 queue = asyncio.Queue()
 asyncio.run(fetchSerial(config, queue))
+
+# Websocket code
+# uri = "ws://192.168.4.1/telemetry"
+# asyncio.run(stream_telemetry(uri))

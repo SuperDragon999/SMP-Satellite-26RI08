@@ -1,6 +1,7 @@
 #include <esp_now.h>
 #include <WiFi.h>
 #include <esp_wifi.h>
+#include <ESPAsyncWebServer.h>
 
 #define RGB_DATA_PIN 38
 #define RGB_PWR_PIN 39
@@ -28,6 +29,9 @@ volatile unsigned long endMicros;
 // High-resolution diagnostic metric shared with the web endpoint
 volatile unsigned long lastLatency = 0;
 
+AsyncWebServer server(80);
+AsyncWebSocket ws("/telemetry");
+
 void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
     endMicros = micros();
     lastTxStatus = status;
@@ -39,13 +43,6 @@ void OnDataRecv(const uint8_t *mac_addr, const uint8_t *incomingData, int len) {
         memcpy(&rxData, incomingData, sizeof(SatellitePayload));
         if (rxData.commandId == 2 && rxData.sourceNodeId != CURRENT_SAT_ID){ //Ping response (ID = 2), valid packet
             rxUpdated = true; //new packet received
-            // String json = "{";
-            // json += "\"Type\":" + String("\"Packet\"") + ",";
-            // json += "\"ID\":" + String(rxData.messageId) + ",";
-            // json += "\"sensor\":" + String(rxData.status) + ",";
-            // json += "\"latency\":" + String(lastLatency);
-            // json += "}";
-            // Serial.println(json);
         }
     }
 }
@@ -56,11 +53,12 @@ void setup() {
     pinMode(RGB_PWR_PIN, OUTPUT);
     digitalWrite(RGB_PWR_PIN, HIGH);
 
-    WiFi.mode(WIFI_STA);
+    WiFi.mode(WIFI_AP_STA);
+    WiFi.softAP("Satellite-Ground-Station", ""); 
 
     esp_wifi_start(); 
     esp_wifi_set_promiscuous(true);
-    esp_wifi_set_channel(8, WIFI_SECOND_CHAN_NONE); 
+    esp_wifi_set_channel(8, WIFI_SECOND_CHAN_NONE); //change channels
     esp_wifi_set_promiscuous(false);
 
     if (esp_now_init() != ESP_OK) {
@@ -72,9 +70,12 @@ void setup() {
     
     memset(&peerInfo, 0, sizeof(peerInfo));
     memcpy(peerInfo.peer_addr, satellite1Mac, 6);
-    peerInfo.channel = 8;  
+    peerInfo.channel = 8; //change channels
     peerInfo.encrypt = false;
     esp_now_add_peer(&peerInfo);
+
+    server.addHandler(&ws);
+    server.begin();
 }
 
 int count = 1;
@@ -121,7 +122,7 @@ void loop() {
                 rxData.status,
                 lastLatency);
 
-                Serial.println(json);
+                ws.textAll(json);
             } else {
                 //ACK Received, but packet got corrupted on the way back
                 char json[64];
@@ -129,7 +130,7 @@ void loop() {
                 "{\"Type\":\"ERR\",\"ID\":%d}",
                 count);
 
-                Serial.println(json);
+                ws.textAll(json);
                 neopixelWrite(RGB_DATA_PIN, 15, 0, 0); //Red light for every error           
             }
         } else {
@@ -139,7 +140,7 @@ void loop() {
             "{\"Type\":\"ERR\",\"ID\":%d}",
             count);
 
-            Serial.println(json);
+            ws.textAll(json);
             neopixelWrite(RGB_DATA_PIN, 15, 0, 0); //Red light for every error  
         }
         count++; //Increase packet count

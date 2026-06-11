@@ -1,9 +1,10 @@
+//SAT-2 IS ALWAYS THE ONE SENDING PINGS
 #include <SPI.h>
 #include <RadioLib.h>
 #define XPOWERS_CHIP_AXP2101
 #include <XPowersLib.h> // Required for powering the LoRa chip on T-Beam v1.2
-
-#define CURRENT_SAT_ID 1
+#define LED_PIN 4
+#define CURRENT_SAT_ID 2
 
 // T-Beam V1.2 LoRa Pin Definitions
 #define LORA_SCK   5
@@ -32,29 +33,29 @@ SX1278 radio = new Module(
     RADIOLIB_NC
 );
 
-volatile bool receivedFlag = false;
+volatile bool rxUpdated = false;
+volatile unsigned long lastLatency = 0;
+SatellitePayload txData;
+SatellitePayload rxData;
 
 #if defined(ESP32) || defined(ESP8266)
   ICACHE_RAM_ATTR
 #endif
 void setFlag() {
-    receivedFlag = true;
+    rxUpdated = true;
 }
 
 void initPMU() {
     if (!PMU.begin(Wire, AXP2101_SLAVE_ADDRESS, 21, 22)) {
         Serial.println("Failed to find AXP2101 PMU");
-        while (1) delay(1000);
     }
     
     // Power up the SX1278 Radio
     PMU.setALDO2Voltage(3300); // 3.3V
     PMU.enableALDO2();
-    Serial.println("AXP2101 PMU Ready - LoRa Powered On");
 }
 
 void setupRadio() {
-    Serial.print("Initializing Radio... ");
     int state = radio.begin(
         LORA_FREQ,
         125.0,
@@ -67,51 +68,37 @@ void setupRadio() {
     );
 
     if (state != RADIOLIB_ERR_NONE) {
-        Serial.print("failed, code: ");
+        Serial.print("RadioLib setup failed, error: ");
         Serial.println(state);
-        while (true) delay(1000);
     }
-    Serial.println("success!");
 
     radio.setDio0Action(setFlag, RISING);
     radio.startReceive();
 }
 
-SatellitePayload txData;
-SatellitePayload rxData;
-int count = 0;
-
 void setup() {
     Serial.begin(921600);
 
-    Serial.println("System starting...");
-
     // Initialize I2C pins for the power management chip
     Wire.begin(21, 22); 
-    Serial.println("I2C bus initialized.");
-
     // Initialize Power Management Chip
     initPMU(); 
-    Serial.println("PMU configured.");
-
     // Initialize SPI for LoRa
     SPI.begin(LORA_SCK, LORA_MISO, LORA_MOSI, LORA_SS);
-    Serial.println("SPI bus initialized.");
-
     // Setup RadioLib
     setupRadio();
-    Serial.println("Radio interface ready.");
+    pinMode(LED_PIN, OUTPUT);
 }
 
+int count = 0;
 void loop() {
+    unsigned long loopStart = millis();
     txData.sourceNodeId = CURRENT_SAT_ID;
     txData.messageId = count;
     txData.status = 0;
     txData.commandId = 1; // PING
 
-    Serial.print("Sending PING #");
-    Serial.println(count);
-
+    // Start microsecond level stopwatch to measure link-layer latency
     unsigned long start = micros();
 
     // 1. Transmit packet (blocking call)
@@ -120,9 +107,10 @@ void loop() {
         Serial.print("Transmit failed, code: ");
         Serial.println(txState);
     }
-
-    // 2. CRITICAL: Clear the flag because transmit just tripped DIO0 high!
-    receivedFlag = false; 
+    digitalWrite(LED_PIN, HIGH); //Set the LED to High when the message is sent
+    
+    // 2. CRITICAL: Clear the flag
+    rxUpdated = false; 
 
     // 3. Put radio in receive mode to listen for the echo
     radio.startReceive();
@@ -130,26 +118,40 @@ void loop() {
     unsigned long timeout = millis();
     bool replied = false;
 
-    // Wait up to 150ms for a response
-    while (millis() - timeout < 150) {
-        if (receivedFlag) {
-            receivedFlag = false; // Reset flag for next time
+    // Wait up to 200ms for a response
+    while (millis() - timeout < 200) {
+        if (rxUpdated) {
+            rxUpdated = false; // Reset flag for next time
 
+            //Check data of the state
             int state = radio.readData((uint8_t*)&rxData, sizeof(rxData));
-
             if (state == RADIOLIB_ERR_NONE) {
                 // Validate it's the response matching our message ID
                 if (rxData.commandId == 2 && rxData.messageId == txData.messageId) {
-                    unsigned long latency = micros() - start;
-                    Serial.print("-> ACK RECEIVED! Round-trip Latency: ");
-                    Serial.print(latency);
-                    Serial.println(" us");
+                    lastLatency = micros() - start;
                     replied = true;
+                    digitalWrite(LED_PIN, LOW); // Turn LED back to low mode when response has been received
+
+                    //Prepare the message 
+                    char json[128];
+
+                    snprintf(json, sizeof(json),
+                    "{\"Type\":\"Packet\",\"ID\":%d,\"sensor\":%d,\"latency\":%ld}",
+                    rxData.messageId,
+                    rxData.status,
+                    lastLatency);
+
+                    Serial.println(json);
                     break; 
                 }
             } else {
-                Serial.print("Read error during window: ");
-                Serial.println(state);
+                //ERROR
+                char json[64];
+                snprintf(json, sizeof(json),
+                "{\"Type\":\"ERR\",\"ID\":%d}",
+                count);
+
+                Serial.println(json);
             }
 
             // If it wasn't the packet we wanted, resume listening
@@ -158,9 +160,16 @@ void loop() {
     }
 
     if (!replied) {
-        Serial.println("-> TIMEOUT: No response from SAT2");
-    }
+        char json[64];
+        snprintf(json, sizeof(json),
+        "{\"Type\":\"ERR\",\"ID\":%d}",
+        count);
 
+        Serial.println(json);
+    }
     count++;
-    delay(1000); // Wait 1 second before next ping
+    unsigned long exeTime = millis() - loopStart;
+    if (exeTime < 1000) {
+        delay(1000 - exeTime);
+    }
 }

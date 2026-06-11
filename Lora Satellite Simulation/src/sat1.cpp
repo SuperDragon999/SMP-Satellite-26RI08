@@ -1,9 +1,11 @@
+//SAT-1 IS ALWAYS THE ONE RECEIVING SIGNALS AND RESPONDING TO THE PING
 #include <SPI.h>
 #include <RadioLib.h>
 #define XPOWERS_CHIP_AXP2101
 #include <XPowersLib.h> // Required for powering the LoRa chip
+#include "touch_sensor.h"
 
-#define CURRENT_SAT_ID 2
+#define CURRENT_SAT_ID 1
 
 // T-Beam V1.2 LoRa Pin Definitions
 #define LORA_SCK   5
@@ -19,11 +21,11 @@
 XPowersPMU PMU;
 
 struct SatellitePayload {
-    uint8_t sourceNodeId;   // 1 byte
-    uint32_t messageId;     // 4 bytes
-    uint32_t status;        // 4 bytes
-    uint32_t commandId;     // 4 bytes
-};                          // Total: 13 bytes
+    uint8_t sourceNodeId;
+    uint32_t messageId;
+    uint32_t status;
+    uint32_t commandId;
+};
 
 SX1278 radio = new Module(
     LORA_SS,
@@ -49,14 +51,11 @@ void setFlag(void) {
 void initPMU() {
     if (!PMU.begin(Wire, AXP2101_SLAVE_ADDRESS, 21, 22)) {
         Serial.println("Failed to find AXP2101 PMU");
-        while (1) delay(1000);
     }
     
     // ALDO2 powers the LoRa radio chip on T-Beam V1.2
     PMU.setALDO2Voltage(3300); // 3.3V
     PMU.enableALDO2();
-    
-    Serial.println("AXP2101 PMU initialized, LoRa powered on.");
 }
 
 void setup() {
@@ -71,7 +70,6 @@ void setup() {
     SPI.begin(LORA_SCK, LORA_MISO, LORA_MOSI, LORA_SS);
 
     // 3. Initialize LoRa Radio
-    Serial.print("Initializing Radio... ");
     int state = radio.begin(
         LORA_FREQ,
         125.0,      // Bandwidth
@@ -86,14 +84,10 @@ void setup() {
     if (state != RADIOLIB_ERR_NONE) {
         Serial.print("failed, code: ");
         Serial.println(state);
-        while (true) delay(1000);
     }
-    Serial.println("success!");
 
     // 4. Setup interrupt callback for packet arrivals
     radio.setDio0Action(setFlag, RISING);
-
-    Serial.println("SAT2 ready, starting listening mode...");
     radio.startReceive();
 }
 
@@ -105,28 +99,22 @@ void loop() {
         int state = radio.readData((uint8_t*)&rxData, sizeof(rxData));
 
         if (state == RADIOLIB_ERR_NONE) {
-            // Ensure we aren't talking to ourselves
             if (rxData.sourceNodeId != CURRENT_SAT_ID) {
-                
-                // 2. PREPARE COMBINED RESPONSE (Acts as both ACK and Data)
                 txData.sourceNodeId = CURRENT_SAT_ID;
-                txData.messageId = rxData.messageId; // Proves we received their exact packet
-                txData.status = 123;                 // Telemetry data
+                txData.messageId = rxData.messageId;
+                txData.status = (uint32_t)getReading(); // Your data
                 txData.commandId = (rxData.commandId == 1) ? 2 : 0;
+
+                // Brief window to let Node 1 settle back into RX mode
+                radio.standby();
+                delay(2);
+                radio.transmit((uint8_t*)&txData, sizeof(txData));
                 
-                // Send everything in one single clean burst
-                int txState = radio.transmit((uint8_t*)&txData, sizeof(txData));
-                
-                if (txState == RADIOLIB_ERR_NONE) {
-                    Serial.println("Combined ACK & Data Response sent successfully.");
-                } else {
-                    Serial.print("TX failed, code: ");
-                    Serial.println(txState);
-                }
+                //Serial.println("Response done");
             }
         }
         
-        // Always make sure the radio drops back into listening mode
+        // Return to listening mode
         radio.startReceive();
     }
 }
