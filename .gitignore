@@ -8,4 +8,4 @@ secrets.ini
 
 .pio
 .vscode
-satellite/.gitignore
+satellite

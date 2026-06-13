@@ -33,4 +33,6 @@ chart = alt.Chart(df).mark_line(point=True).encode(
     height=400
 ).interactive()
 
+
+
 chart.save("doppler/doppler_curve.html")
