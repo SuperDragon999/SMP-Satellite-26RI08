@@ -1,5 +1,6 @@
 #include <SPI.h>
 #include <RadioLib.h>
+#include "touch_sensor.h"
 
 #define LORA_CLK     12
 #define LORA_MISO    13
@@ -7,7 +8,7 @@
 #define LORA_CS      10
 #define LORA_RST     15
 #define LORA_BUSY    9
-#define LORA_DIO1    16
+#define LORA_DIO9    16
 
 #define RGB_DATA_PIN 38
 #define RGB_PWR_PIN  39
@@ -31,9 +32,9 @@ struct AckPayload {
 
 SatellitePayload txData;
 AckPayload ackData;
-LR1121 radio = new Module(LORA_CS, LORA_DIO1, LORA_RST, LORA_BUSY);
+LR1121 radio = new Module(LORA_CS, LORA_DIO9, LORA_RST, LORA_BUSY);
 
-const float dopplerOffsets[] = { 22012.1799763 ,  22013.57509443,  22014.95180347,  22016.30999315,
+const double dopplerOffsets[] = { 22012.1799763 ,  22013.57509443,  22014.95180347,  22016.30999315,
   22017.6495519 ,  22018.97036681,  22020.27232361,  22021.55530663,
   22022.81919881,  22024.06388168,  22025.28923531,  22026.49513831,
   22027.68146781,  22028.84809943,  22029.99490726,  22031.12176383,
@@ -286,10 +287,11 @@ void loop() {
     radio.standby(); // clears any stuck rx registers
 
     // 1. Calculate and adjust for physical kinematic orbit offsets
-    float currentOffset = dopplerOffsets[index];
-    float compensatedFreq = 915.0 + (currentOffset / 1000000.0);
-    radio.setFrequency(compensatedFreq);
-    Serial.println(compensatedFreq);
+    double currentOffset = dopplerOffsets[index];
+    double compensatedFreq = 915.0 + (currentOffset / 1000000.0);
+    radio.setFrequency((float)compensatedFreq);
+    Serial.print("Transmitting message at shifted frequency of ");
+    Serial.println(compensatedFreq, 8);
 
     // 2. Compile system frame payload structures
     txData.identifier = ID;
@@ -311,13 +313,14 @@ void loop() {
         int rxState = radio.receive((uint8_t*)&ackData, sizeof(ackData), 300);
         
         if (rxState == RADIOLIB_ERR_NONE && ackData.packetType == 2 && ackData.messageId == txData.messageId) {
-            neopixelWrite(RGB_DATA_PIN, 0, 20, 0); // Green confirms closed-loop link negotiation tracking active
+            neopixelWrite(RGB_DATA_PIN, 0, 50, 0); // Green confirms closed-loop link negotiation tracking active
             
             // Extract down-link command registers mapped out by the ground station
             satSF = ackData.targetSF;
             uint8_t bwCode = ackData.targetBWCode;
             
-            if (bwCode == 0) satBW = 62.5;
+            //EDIT THE FOLLOWING THINGS!
+            if (bwCode == 0) satBW = 62.5; 
             else if (bwCode == 1) satBW = 125.0;
             else if (bwCode == 2) satBW = 250.0;
             

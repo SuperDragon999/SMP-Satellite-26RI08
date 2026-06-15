@@ -5,16 +5,16 @@
 #define LORA_MISO    13
 #define LORA_MOSI    11
 #define LORA_CS      10
-#define LORA_RST     15
+#define LORA_RST     14
 #define LORA_BUSY    9
-#define LORA_DIO1    14
+#define LORA_DIO9    16
 
 #define RGB_DATA_PIN 38
 #define RGB_PWR_PIN  39
 
 #define ID 0
 
-LR1121 radio = new Module(LORA_CS, LORA_DIO1, LORA_RST, LORA_BUSY);
+LR1121 radio = new Module(LORA_CS, LORA_DIO9, LORA_RST, LORA_BUSY);
 
 volatile bool packetReceived = false;
 
@@ -72,7 +72,14 @@ void setup() {
     // The LR1121 uses DIO3 to supply the TCXO regulator. 1.6V is typical.
     state = radio.setTCXO(1.6);
     if (state != RADIOLIB_ERR_NONE) {
-        Serial.println("TCXO Configuration Failed!");
+        while (true) {
+            Serial.println("Configuration Failed!");
+            neopixelWrite(RGB_DATA_PIN, 100, 0, 0); // Solid red blocks execution on setup error
+            Serial.println(state);
+            delay(200);
+            neopixelWrite(RGB_DATA_PIN, 0, 0, 0);
+            delay(200);
+        }
     }
 
     radio.setPacketReceivedAction(setFlag);
@@ -91,7 +98,7 @@ void loop() {
             uint8_t nextSF = currentSF;
             uint8_t nextBWCode = 1; 
 
-            // CLOSED-LOOP SYSTEM
+            // REDESIGN THIS SYSTEM
             if (fei > 15000.0) {
                 nextBWCode = 2; // Expand Bandwidth to 250.0 kHz (Widening the tracking window)
                 if (snr < -10.0) {
