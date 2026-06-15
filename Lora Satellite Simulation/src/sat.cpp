@@ -1,14 +1,13 @@
 #include <SPI.h>
 #include <RadioLib.h>
-#include "touch_sensor.h"
 
-#define LORA_SCK     12
+#define LORA_CLK     12
 #define LORA_MISO    13
 #define LORA_MOSI    11
-#define LORA_SS      10
-#define LORA_RST     9
-#define LORA_BUSY    21
-#define LORA_DIO1    8
+#define LORA_CS      10
+#define LORA_RST     15
+#define LORA_BUSY    9
+#define LORA_DIO1    16
 
 #define RGB_DATA_PIN 38
 #define RGB_PWR_PIN  39
@@ -32,7 +31,7 @@ struct AckPayload {
 
 SatellitePayload txData;
 AckPayload ackData;
-LR1121 radio = new Module(LORA_SS, LORA_DIO1, LORA_RST, LORA_BUSY);
+LR1121 radio = new Module(LORA_CS, LORA_DIO1, LORA_RST, LORA_BUSY);
 
 const float dopplerOffsets[] = { 22012.1799763 ,  22013.57509443,  22014.95180347,  22016.30999315,
   22017.6495519 ,  22018.97036681,  22020.27232361,  22021.55530663,
@@ -134,7 +133,7 @@ const float dopplerOffsets[] = { 22012.1799763 ,  22013.57509443,  22014.9518034
    4063.78673566,   3734.55392314,   3402.92158741,   3069.08251704,
    2733.23642221,   2395.58939881,   2056.35334628,   1715.7453428 ,
    1373.98698171,   1031.3036736 ,    687.9239192 ,    344.07855822,
-     -0.        ,   -344.07855822,   -687.9239192 ,  -1031.3036736 ,
+     0        ,   -344.07855822,   -687.9239192 ,  -1031.3036736 ,
   -1373.98698171,  -1715.7453428 ,  -2056.35334628,  -2395.58939881,
   -2733.23642221,  -3069.08251704,  -3402.92158741,  -3734.55392314,
   -4063.78673566,  -4390.43464498,  -4714.32011536,  -5035.27383817,
@@ -248,8 +247,10 @@ void setup() {
     pinMode(RGB_PWR_PIN, OUTPUT);
     digitalWrite(RGB_PWR_PIN, HIGH);
     
-    SPI.begin(LORA_SCK, LORA_MISO, LORA_MOSI, LORA_SS);
-    
+    delay(100);    
+    SPI.begin(LORA_CLK, LORA_MISO, LORA_MOSI);
+
+    radio.tcxoVoltage = 1.6;
     // Initialization signature for RadioLib LR1121 standard syntax
     int state = radio.begin(
         915.0,       // Center Frequency (MHz)
@@ -257,20 +258,19 @@ void setup() {
         satSF,       // Spreading Factor
         5,           // Coding Rate (4/5)
         0x12,        // Sync Word
-        17           // Output Power (dBm)
+        17,          // Output Power (dBm)
+        8            // Preamble length
     );
     
     if (state != RADIOLIB_ERR_NONE) {
         while (true) {
             neopixelWrite(RGB_DATA_PIN, 100, 0, 0); // Solid red blocks execution on setup error
+            Serial.println(state);
             delay(200);
             neopixelWrite(RGB_DATA_PIN, 0, 0, 0);
             delay(200);
         }
     }
-
-    // Initialization of internal TCXO required by Core1121 modules
-    radio.setTCXO(1.6);
     
     passStartTime = millis();
 }
@@ -289,17 +289,19 @@ void loop() {
     float currentOffset = dopplerOffsets[index];
     float compensatedFreq = 915.0 + (currentOffset / 1000000.0);
     radio.setFrequency(compensatedFreq);
+    Serial.println(compensatedFreq);
 
     // 2. Compile system frame payload structures
     txData.identifier = ID;
     txData.messageId = count++;
     txData.telemetry = 123;
-    txData.telemetry2 = (uint32_t)getReading();
+    txData.telemetry2 = 472;
 
     neopixelWrite(RGB_DATA_PIN, 20, 20, 0); // Yellow flash indicates frame transmission sweep
     
     // 3. Dispatch telemetry burst
     int txState = radio.transmit((uint8_t*)&txData, sizeof(txData));
+    yield();
     
     if (txState == RADIOLIB_ERR_NONE) {
         neopixelWrite(RGB_DATA_PIN, 0, 0, 20); // Blue indicates down-link transmission confirmed

@@ -1,20 +1,20 @@
 #include <SPI.h>
 #include <RadioLib.h>
 
-#define LORA_SCK     12
+#define LORA_CLK     12
 #define LORA_MISO    13
 #define LORA_MOSI    11
-#define LORA_SS      10
-#define LORA_RST     9
-#define LORA_BUSY    21
-#define LORA_DIO1    8
+#define LORA_CS      10
+#define LORA_RST     15
+#define LORA_BUSY    9
+#define LORA_DIO1    14
 
 #define RGB_DATA_PIN 38
 #define RGB_PWR_PIN  39
 
 #define ID 0
 
-LR1121 radio = new Module(LORA_SS, LORA_DIO1, LORA_RST, LORA_BUSY);
+LR1121 radio = new Module(LORA_CS, LORA_DIO1, LORA_RST, LORA_BUSY);
 
 volatile bool packetReceived = false;
 
@@ -48,7 +48,7 @@ void setup() {
     pinMode(RGB_DATA_PIN, OUTPUT);
     digitalWrite(RGB_PWR_PIN, HIGH);
 
-    SPI.begin(LORA_SCK, LORA_MISO, LORA_MOSI, LORA_SS);
+    SPI.begin(LORA_CLK, LORA_MISO, LORA_MOSI, LORA_CS);
     
     int state = radio.begin(
         915.0,       // Carrier Frequency (MHz)
