@@ -19,6 +19,17 @@ def addEntry(id, t, d1, d2, s):
     database.commit()
     database.close()
 
+def addToA(id, t):
+    database = sqlite3.connect(db_path)
+    c = database.cursor()
+    c.execute('''
+        INSERT INTO toa (ID, time) VALUES (?, ?);
+    ''', (id, t))
+
+    print(f"Added into toa {id}, {t}")
+    database.commit()
+    database.close()
+
 def readAllData():
     '''
     Read all data in table

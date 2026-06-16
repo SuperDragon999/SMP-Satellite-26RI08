@@ -22,6 +22,16 @@ async def db_worker(queue):
         finally:
             queue.task_done()
 
+async def db_worker2(queue):
+    while True:
+        job = await queue.get()
+        try:
+            await asyncio.to_thread(addToA, job["ID"], job["time"])
+        except Exception as e:
+            print(f"[-] Database write error: {e}")
+        finally:
+            queue.task_done()
+
 class SerialJSONProtocol(asyncio.Protocol):
     def __init__(self, queue):
         self.buffer = ""
