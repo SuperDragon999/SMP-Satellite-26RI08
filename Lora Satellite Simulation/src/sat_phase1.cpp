@@ -93,14 +93,16 @@ void loop() {
         neopixelWrite(RGB_DATA_PIN, 0, 0, 20); // Blue indicates down-link transmission confirmed
         delay(20);
         neopixelWrite(RGB_DATA_PIN, 0, 0, 0);
-        Serial.print("ToA for packet ");
-        Serial.print(count);
-        Serial.print(" is ");
-        Serial.println(toa);
+        char json[128];
+        snprintf(json, sizeof(json),
+        "{\"ID\":%ld,\"time\":%lu}", count, toa);
+        Serial.println(json);
     } else {
         neopixelWrite(RGB_DATA_PIN, 50, 0, 0);
-        Serial.print("Error sending packet ");
-        Serial.println(count);
+        char json[128];
+        snprintf(json, sizeof(json),
+        "{\"ID\":%ld,\"time\":%lu}", -1L, 0UL);
+        Serial.println(json);
     }
     
     long long end = millis();

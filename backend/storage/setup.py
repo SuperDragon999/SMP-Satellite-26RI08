@@ -9,11 +9,18 @@ c = database.cursor()
 
 c.execute('''
 CREATE TABLE IF NOT EXISTS data(
-          ID INTEGER PRIMARY KEY,
+          ID INTEGER,
           type TEXT,
           data1 INTEGER,
           data2 INTEGER,
           snr FLOAT
+);
+''')
+
+c.execute('''
+CREATE TABLE IF NOT EXISTS toa (
+          ID INTEGER,
+          time INTEGER
 );
 ''')
 
