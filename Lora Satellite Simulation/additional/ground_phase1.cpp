@@ -27,15 +27,15 @@ float currentBW = 125; // CHANGE BEFORE EACH TEST
 
 struct SatellitePayload {
     uint8_t identifier;
-    uint32_t messageId;
+    uint32_t messageID;
     uint32_t telemetry;
     uint32_t telemetry2;
 };
 
 struct AckPayload {
     uint8_t packetType;
-    uint8_t identifier;
-    uint32_t messageId;
+    uint8_t IDentifier;
+    uint32_t messageID;
     uint8_t targetSF;
     uint8_t targetBWCode;
 };
@@ -103,15 +103,15 @@ void loop() {
         int state = radio.readData((uint8_t*)&rxData, sizeof(rxData));
 
         radio.startReceive();
-        if (state == RADIOLIB_ERR_NONE) {
+        if (state == RADIOLIB_ERR_NONE && rxData.identifier == 1) {
             link_down = false;
             float snr = radio.getSNR();
-            count = rxData.messageId;
+            count = rxData.messageID;
 
             char json[128];
             snprintf(json, sizeof(json),
-            "{\"type\":\"telemetry\",\"id\":%d,\"tel1\":%lu,\"tel2\":%lu,\"snr\":%.2f}",
-            rxData.messageId,
+            "{\"type\":\"PACKET\",\"ID\":%d,\"data1\":%lu,\"data2\":%lu,\"snr\":%.2f}",
+            rxData.messageID,
             rxData.telemetry,
             rxData.telemetry2,
             snr);
@@ -126,7 +126,8 @@ void loop() {
             delay(25);
             neopixelWrite(RGB_DATA_PIN, 0, 0, 0);
             char json[128];
-            snprintf(json, sizeof(json),"{\"type\":\"DATA_ERR\"}");
+            snprintf(json, sizeof(json),
+            "{\"type\":\"DATA_ERR\",\"ID\":%d,\"data1\":%lu,\"data2\":%lu,\"snr\":%.2f}", -1, 0, 0, 0.00);
             Serial.println(json);
         }
     }
@@ -139,7 +140,8 @@ void loop() {
             delay(25);
             neopixelWrite(RGB_DATA_PIN, 0, 0, 0);
             char json[128];
-            snprintf(json, sizeof(json),"{\"type\":\"LINK_ERR\"}");
+            snprintf(json, sizeof(json),
+            "{\"type\":\"LINK_ERR\",\"ID\":%d,\"data1\":%lu,\"data2\":%lu,\"snr\":%.2f}", -2, 0, 0, 0.00);
             Serial.println(json);
         } else {
             if (millis() - lastError > 2500){
@@ -148,7 +150,8 @@ void loop() {
                 delay(25);
                 neopixelWrite(RGB_DATA_PIN, 0, 0, 0);
                 char json[128];
-                snprintf(json, sizeof(json),"{\"type\":\"LINK_ERR\"}");
+                snprintf(json, sizeof(json),
+                "{\"type\":\"LINK_ERR\",\"ID\":%d,\"data1\":%lu,\"data2\":%lu,\"snr\":%.2f}", -2, 0, 0, 0.00);
                 Serial.println(json);
             }          
         }   

@@ -5,16 +5,16 @@ current_dir = Path(__file__).resolve().parent
 project_root = current_dir.parent.parent
 db_path = project_root / "backend" / "storage" / "data" / "logs.db"
 
-def addEntry(id, s, l, t):
+def addEntry(id, t, d1, d2, s):
     database = sqlite3.connect(db_path)
     c = database.cursor()
     c.execute('''
-        INSERT INTO data (ID, sensor, latency, type)
-              VALUES (?, ?, ?, ?);
-    ''', (id, s, l, t))
+        INSERT INTO data (ID, type, data1, data2, snr)
+              VALUES (?, ?, ?, ?, ?);
+    ''', (id, t, d1, d2, s))
 
     #debug line
-    print(f"Added into data table {id}, {s}, {l}, {t}.")
+    print(f"Added into data table {id}, {t}, {d1}, {d2}, {s}.")
 
     database.commit()
     database.close()
@@ -38,7 +38,7 @@ def getData(columns):
     escaped_columns = [f"[{col}]" if " " in col else col for col in columns]
     column_string = ", ".join(escaped_columns)
     
-    query = f"SELECT {column_string} FROM data WHERE type != 'DROP';"
+    query = f"SELECT {column_string} FROM data WHERE type != 'LINK_ERR';"
     data = pd.read_sql(query, conn)
     return data
 
@@ -55,9 +55,10 @@ def clearData():
     c.execute('''
     CREATE TABLE IF NOT EXISTS data(
             ID INTEGER PRIMARY KEY,
-            sensor INTEGER,
-            latency INTEGER,
-            type TEXT
+            type TEXT,
+            data1 INTEGER,
+            data2 INTEGER,
+            snr FLOAT
     );
     ''')
 

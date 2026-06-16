@@ -17,7 +17,7 @@
 
 struct SatellitePayload {
     uint8_t identifier;
-    uint32_t messageId;
+    uint32_t messageID;
     uint32_t telemetry;
     uint32_t telemetry2;
 };
@@ -74,7 +74,7 @@ void loop() {
 
     // 1. Compile system frame payload structures
     txData.identifier = ID;
-    txData.messageId = count++;
+    txData.messageID = count++;
     txData.telemetry = (uint32_t)getReading();
     txData.telemetry2 = (uint32_t)getReading2();
     
@@ -88,14 +88,19 @@ void loop() {
     unsigned long txEndTime = micros();
 
     unsigned long toa = txEndTime - txStartTime;
-    Serial.println(toa);
 
     if (txState == RADIOLIB_ERR_NONE) {
         neopixelWrite(RGB_DATA_PIN, 0, 0, 20); // Blue indicates down-link transmission confirmed
         delay(20);
         neopixelWrite(RGB_DATA_PIN, 0, 0, 0);
+        Serial.print("ToA for packet ");
+        Serial.print(count);
+        Serial.print(" is ");
+        Serial.println(toa);
     } else {
         neopixelWrite(RGB_DATA_PIN, 50, 0, 0);
+        Serial.print("Error sending packet ");
+        Serial.println(count);
     }
     
     long long end = millis();

@@ -11,7 +11,8 @@ c.execute('''
 CREATE TABLE IF NOT EXISTS data(
           ID INTEGER PRIMARY KEY,
           type TEXT,
-          data INTEGER,
+          data1 INTEGER,
+          data2 INTEGER,
           snr FLOAT
 );
 ''')

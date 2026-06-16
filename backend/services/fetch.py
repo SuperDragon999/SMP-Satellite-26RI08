@@ -8,12 +8,15 @@ async def db_worker(queue):
     while True:
         job = await queue.get()
         try:
-            data_type = job["Type"]
-            if data_type == "Packet":
-                await asyncio.to_thread(addEntry, job["ID"], job["sensor"], job["latency"], "PACKET")
-            elif data_type == "ERR":
-                print(f"PACKET DROP at packet {job['ID']}")
-                await asyncio.to_thread(addEntry, job["ID"], 0, 0, "DROP")
+            data_type = job["type"]
+            if data_type == "PACKET":
+                await asyncio.to_thread(addEntry, job["ID"], job["type"], job["data1"], job["data2"], job["snr"])
+            elif data_type == "DATA_ERR":
+                print("CORRUPT PACKET \n")
+                await asyncio.to_thread(addEntry, job["ID"], job["type"], job["data1"], job["data2"], job["snr"])
+            elif data_type == "LINK_ERR":
+                print("DROPPED PACKET \n")
+                await asyncio.to_thread(addEntry, job["ID"], job["type"], job["data1"], job["data2"], job["snr"])
         except Exception as e:
             print(f"[-] Database write error: {e}")
         finally:
