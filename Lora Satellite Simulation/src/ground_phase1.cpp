@@ -91,46 +91,66 @@ void setup() {
     radio.startReceive();
 }
 
-volatile long long loopStart;
+volatile long long lastPacketTime = 0;
+volatile long long lastError = 0;
 volatile long int count;
+volatile bool link_down = false;
+
 void loop() {
-    loopStart = millis();
     if (packetReceived) {
         packetReceived = false;
 
         int state = radio.readData((uint8_t*)&rxData, sizeof(rxData));
+
+        radio.startReceive();
         if (state == RADIOLIB_ERR_NONE) {
+            link_down = false;
             float snr = radio.getSNR();
             count = rxData.messageId;
+
             char json[128];
             snprintf(json, sizeof(json),
-            "{\"type\":\"telemetry\",\"id\":%d,\"tel\":%lu,\"sf\":%d,\"bw\":%.1f,\"snr\":%.2f}",
+            "{\"type\":\"telemetry\",\"id\":%d,\"tel1\":%lu,\"tel2\":%lu,\"snr\":%.2f}",
             rxData.messageId,
             rxData.telemetry,
-            currentSF,
-            currentBW,
+            rxData.telemetry2,
             snr);
-
             Serial.println(json);
-            neopixelWrite(RGB_DATA_PIN, 0, 50, 0); // Green flashes indicate a complete successful tracking swap
+
+            lastPacketTime = millis();
+            neopixelWrite(RGB_DATA_PIN, 0, 50, 0); // Green flashes indicate a complete successful track
+            delay(25);
+            neopixelWrite(RGB_DATA_PIN, 0, 0, 0);
         } else {
             neopixelWrite(RGB_DATA_PIN, 50, 0, 0); // Red flash for frame checksum or CRC failure
+            delay(25);
+            neopixelWrite(RGB_DATA_PIN, 0, 0, 0);
             char json[128];
-            snprintf(json, sizeof(json),"{\"type\":\"DATA_ERR\",\"id\": %ld}", (count + 1));
+            snprintf(json, sizeof(json),"{\"type\":\"DATA_ERR\"}");
             Serial.println(json);
         }
-        
-        radio.startReceive();
-    } else {
-        //No Packet Received
-        neopixelWrite(RGB_DATA_PIN, 50, 0, 50); // Purple light
-        char json[128];
-        snprintf(json, sizeof(json),"{\"type\":\"LINK_ERR\"}");
-        Serial.println(json);
     }
 
-    long long end = millis();
-    if (end - loopStart <= 2500){
-        delay(2500 - (end - loopStart)); //2.5 second gap
+    if (millis() - lastPacketTime > 2500) {
+        if (!link_down){
+            link_down = true;
+            lastError = millis();
+            neopixelWrite(RGB_DATA_PIN, 50, 0, 50); // Steady purple signifies absolute connection loss
+            delay(25);
+            neopixelWrite(RGB_DATA_PIN, 0, 0, 0);
+            char json[128];
+            snprintf(json, sizeof(json),"{\"type\":\"LINK_ERR\"}");
+            Serial.println(json);
+        } else {
+            if (millis() - lastError > 2500){
+                lastError = millis();
+                neopixelWrite(RGB_DATA_PIN, 50, 0, 50); // Steady purple signifies absolute connection loss
+                delay(25);
+                neopixelWrite(RGB_DATA_PIN, 0, 0, 0);
+                char json[128];
+                snprintf(json, sizeof(json),"{\"type\":\"LINK_ERR\"}");
+                Serial.println(json);
+            }          
+        }   
     }
 }

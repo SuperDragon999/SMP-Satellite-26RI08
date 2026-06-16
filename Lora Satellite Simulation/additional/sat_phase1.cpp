@@ -1,5 +1,6 @@
 #include <SPI.h>
 #include <RadioLib.h>
+#include "touch_sensor.h"
 
 #define LORA_CLK     12
 #define LORA_MISO    13
@@ -21,16 +22,8 @@ struct SatellitePayload {
     uint32_t telemetry2;
 };
 
-struct AckPayload {
-    uint8_t packetType;
-    uint8_t identifier;
-    uint32_t messageId;
-    uint8_t targetSF;
-    uint8_t targetBWCode;
-};
-
 SatellitePayload txData;
-AckPayload ackData;
+
 LR1121 radio = new Module(LORA_CS, LORA_DIO9, LORA_RST, LORA_BUSY);
 
 uint8_t satSF = 7; // CHANGE BEFORE EACH TEST
@@ -82,13 +75,21 @@ void loop() {
     // 1. Compile system frame payload structures
     txData.identifier = ID;
     txData.messageId = count++;
-    txData.telemetry = 123;
-    txData.telemetry2 = 472;
+    txData.telemetry = (uint32_t)getReading();
+    txData.telemetry2 = (uint32_t)getReading2();
     
     // 2. Dispatch telemetry
+    unsigned long txStartTime = micros();
     int txState = radio.transmit((uint8_t*)&txData, sizeof(txData));
-    yield();
-    
+
+    while(digitalRead(LORA_BUSY) == HIGH) {
+        yield();
+    }
+    unsigned long txEndTime = micros();
+
+    unsigned long toa = txEndTime - txStartTime;
+    Serial.println(toa);
+
     if (txState == RADIOLIB_ERR_NONE) {
         neopixelWrite(RGB_DATA_PIN, 0, 0, 20); // Blue indicates down-link transmission confirmed
         delay(20);

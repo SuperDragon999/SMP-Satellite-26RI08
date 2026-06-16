@@ -13,7 +13,7 @@ env=env
 )
 
 #Pyserial Code
-config=SerialConfig("COM5", 921600)
+config=SerialConfig("COM10", 921600)
 queue = asyncio.Queue()
 asyncio.run(fetchSerial(config, queue))
 

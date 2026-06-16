@@ -72,45 +72,6 @@ async def fetchserial(port, baud):
 
     await worker_task
 
-#Websocket async monitor
-async def stream_telemetry(uri):
-    print(f"[+] Connecting to ground station at {uri}...")
-    logged = False
-    while True:
-        if not await asyncio.to_thread(get_record):
-            if not logged:
-                print("[IDLE] Recording is off, no query is being made.")
-                logged = True
-            await asyncio.sleep(0.1)
-            continue
-
-        print(f"[+] Recording activated! Initializing connection to {uri}...")
-        queue = asyncio.Queue()
-        worker_task = asyncio.create_task(db_worker(queue))
-        
-        while await asyncio.to_thread(get_record):
-            try:
-                async with websockets.connect(uri) as websocket:
-                    print("[+] Connected to ESP32!")
-                    async for message in websocket:
-                        if not await asyncio.to_thread(get_record):
-                            break
-                        else:
-                            print(f"[+] Received: {message}")
-                            data = json.loads(message)
-                            await queue.put(data)
-            except (websockets.exceptions.ConnectionClosed, OSError) as e:
-                print(f"[-] Connection lost ({e}). Reconnecting in 3 seconds...")
-                if not await asyncio.to_thread(get_record):
-                    break
-                await asyncio.sleep(3)
-            finally:
-                logged = False
-        
-        print(f"[-] Recording stopped by user.")
-        await queue.join()
-        worker_task.cancel()
-
 class SerialConfig:
     def __init__(self, port, baudrate):
         self.port = port
@@ -120,6 +81,7 @@ class SerialConfig:
             return
         else:
             self.queue.put_nowait(obj)
+
 async def fetchSerial(config: SerialConfig, queue: asyncio.Queue):
     logged = False
     while True:
