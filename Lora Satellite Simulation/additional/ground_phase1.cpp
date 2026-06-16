@@ -1,4 +1,3 @@
-//edit!
 #include <SPI.h>
 #include <RadioLib.h>
 
@@ -23,8 +22,8 @@ void setFlag() {
     packetReceived = true;
 }
 
-uint8_t currentSF = 7;
-float currentBW = 125.0;
+uint8_t currentSF = 7; // CHANGE BEFORE EACH TEST
+float currentBW = 125; // CHANGE BEFORE EACH TEST
 
 struct SatellitePayload {
     uint8_t identifier;
@@ -33,7 +32,16 @@ struct SatellitePayload {
     uint32_t telemetry2;
 };
 
+struct AckPayload {
+    uint8_t packetType;
+    uint8_t identifier;
+    uint32_t messageId;
+    uint8_t targetSF;
+    uint8_t targetBWCode;
+};
+
 SatellitePayload rxData;
+AckPayload ackData;
 
 void setup() {
     Serial.begin(921600);
@@ -53,9 +61,11 @@ void setup() {
 
     if (state != RADIOLIB_ERR_NONE) {
         while (true) {
-            neopixelWrite(RGB_DATA_PIN, 50, 0, 0); // Solid Red indicates initialization failure
+            Serial.println("Configuration failed!");
+            neopixelWrite(RGB_DATA_PIN, 100, 0, 0); // Red-blue flashes indicates initialization failure
             delay(200);
             neopixelWrite(RGB_DATA_PIN, 0, 0, 0);
+            neopixelWrite(RGB_DATA_PIN, 0, 100, 0);
             delay(200);
         }
     }
@@ -66,10 +76,11 @@ void setup() {
     if (state != RADIOLIB_ERR_NONE) {
         while (true) {
             Serial.println("Configuration Failed!");
-            neopixelWrite(RGB_DATA_PIN, 100, 0, 0); // Solid red blocks execution on setup error
+            neopixelWrite(RGB_DATA_PIN, 100, 0, 0); // Red-blue flashes on setup error, blocks initialization
+            Serial.print("Error: ");
             Serial.println(state);
             delay(200);
-            neopixelWrite(RGB_DATA_PIN, 0, 0, 0);
+            neopixelWrite(RGB_DATA_PIN, 0, 100, 0);
             delay(200);
         }
     }
@@ -78,28 +89,44 @@ void setup() {
     radio.startReceive();
 }
 
+volatile long long loopStart;
 void loop() {
+    loopStart = millis();
     if (packetReceived) {
         packetReceived = false;
 
         int state = radio.readData((uint8_t*)&rxData, sizeof(rxData));
         if (state == RADIOLIB_ERR_NONE) {
-            //REDESIGN
+            float snr = radio.getSNR();
             char json[128];
             snprintf(json, sizeof(json),
-            "{\"type\":\"telemetry\",\"id\":%d,\"msg\":%lu,\"sf\":%d,\"bw\":%.1f,\"pdr_hint\":%d}",
-            ID,
+            "{\"type\":\"telemetry\",\"id\":%d,\"tel\":%lu,\"sf\":%d,\"bw\":%.1f,\"snr\":%.2f}",
+            rxData.messageId,
             rxData.telemetry,
             currentSF,
             currentBW,
-            state == RADIOLIB_ERR_NONE ? 1 : 0);
+            snr);
 
             Serial.println(json);
             neopixelWrite(RGB_DATA_PIN, 0, 50, 0); // Green flashes indicate a complete successful tracking swap
         } else {
             neopixelWrite(RGB_DATA_PIN, 50, 0, 0); // Red flash for frame checksum or CRC failure
+            char json[128];
+            snprintf(json, sizeof(json),"{\"type\":\"DATA_ERR\"}");
+            Serial.println(json);
         }
         
         radio.startReceive();
+    } else {
+        //No Packet Received
+        neopixelWrite(RGB_DATA_PIN, 50, 0, 50); // Purple light
+        char json[128];
+        snprintf(json, sizeof(json),"{\"type\":\"LINK_ERR\"}");
+        Serial.println(json);
+    }
+
+    long long end = millis();
+    if (end - loopStart <= 2500){
+        delay(2500 - (end - loopStart)); //2.5 second gap
     }
 }

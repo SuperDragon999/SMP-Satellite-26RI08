@@ -33,9 +33,8 @@ SatellitePayload txData;
 AckPayload ackData;
 LR1121 radio = new Module(LORA_CS, LORA_DIO9, LORA_RST, LORA_BUSY);
 
-uint8_t satSF = 7;
-float satBW = 125.0;
-uint32_t count = 0;
+uint8_t satSF = 7; // CHANGE BEFORE EACH TEST
+float satBW = 125; // CHANGE BEFORE EACH TEST
 
 void setup() {
     Serial.begin(921600);
@@ -60,21 +59,24 @@ void setup() {
     
     if (state != RADIOLIB_ERR_NONE) {
         while (true) {
-            neopixelWrite(RGB_DATA_PIN, 100, 0, 0); // Solid red blocks execution on setup error
+            Serial.println("Configuration Failed!");
+            neopixelWrite(RGB_DATA_PIN, 100, 0, 0); // Red-blue flashes on setup error, blocks initialization
+            Serial.print("Error: ");
             Serial.println(state);
             delay(200);
-            neopixelWrite(RGB_DATA_PIN, 0, 0, 0);
+            neopixelWrite(RGB_DATA_PIN, 0, 100, 0);
             delay(200);
         }
     }
 }
 
+uint32_t count = 0;
 volatile long long loopStart;
 void loop() {
     loopStart = millis();
 
     radio.standby(); // clears any stuck rx registers
-    radio.setFrequency((float)915 + 22012.1799763);
+    radio.setFrequency((double)(915 + 0.0220121799763));
 
     // 2. Compile system frame payload structures
     txData.identifier = ID;
@@ -88,12 +90,13 @@ void loop() {
     
     if (txState == RADIOLIB_ERR_NONE) {
         neopixelWrite(RGB_DATA_PIN, 0, 0, 20); // Blue indicates down-link transmission confirmed
+        neopixelWrite(RGB_DATA_PIN, 0, 0, 0);
     } else {
         neopixelWrite(RGB_DATA_PIN, 50, 0, 0);
     }
-
+    
     long long end = millis();
     if (end - loopStart <= 2500){
-        delay(2500 - (end - loopStart));
+        delay(2500 - (end - loopStart)); //2.5 second gap
     }
 }
