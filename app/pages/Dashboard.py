@@ -4,11 +4,12 @@ import altair as alt
 from backend.storage.db_commands import *
 
 st.title('TT&C Dashboard')
+state = get_record()
+mode = get_mode()
 
 col1, col2 = st.columns([0.5, 0.5], vertical_alignment="center")
 with col1:
     with st.container(border=True, height=200):
-        state = get_record()
         st.write("Control data input")
         if state == 0:
             if st.button("Start Recording", type="primary", use_container_width=True):
@@ -26,9 +27,9 @@ with col1:
 with col2:
     with st.container(border=True, height=200):
         options = ["SAT", "GND"]
-        mode = "SAT" if get_mode() else "GND"
+        selected_mode = "SAT" if mode else "GND"
         if state == 0:
-            selection = st.pills("Recording modes", options, selection_mode="single", default=mode, required=True)
+            selection = st.pills("Recording modes", options, selection_mode="single", default=selected_mode, required=True)
         else:
             selection = st.pills("Recording modes", options, selection_mode="single", disabled=True)
             st.info("You cannot change the configuration while recording.")
@@ -43,28 +44,34 @@ def metrics():
                 f"{total_packets}",
             )
 
-    st.subheader("SNR Graph")
-    # chart = alt.Chart(df2).mark_line(color='#38bdf8').encode(
-    #     x=alt.X(
-    #         'ID:Q', 
-    #         title='Frame ID',
-    #         axis=alt.Axis(format='d', tickMinStep=1),
-    #         scale=alt.Scale(
-    #             domain=[df2['ID'].min(), df2['ID'].max()],            
-    #             clamp=True)
-    #     ),
-    #     y=alt.Y(
-    #         'latency:Q', 
-    #         title='Latency (μs)',
-    #         scale=alt.Scale(domain=[0, df2['latency'].max()*1.5], clamp=True)
-    #     )
-    # ).add_params(
-    #     scales_selection
-    # ).properties(
-    #     width='container',
-    #     height=350
-    # )
-    # st.altair_chart(chart, width="stretch")    
+    if mode == 0:
+        df = getData(["ID", "snr"])
+        scales_selection = alt.selection_interval(
+            bind='scales',
+            encodings=['x']
+        )
+        st.subheader("SNR Graph")
+        chart = alt.Chart(df).mark_line(color='#38bdf8').encode(
+            x=alt.X(
+                'ID:Q', 
+                title='Frame ID',
+                axis=alt.Axis(format='d', tickMinStep=1),
+                scale=alt.Scale(
+                    domain=[df['ID'].min(), df['ID'].max()],            
+                    clamp=True)
+            ),
+            y=alt.Y(
+                'snr:Q', 
+                title='SNR (dB)',
+                scale=alt.Scale(domain=[0, df['snr'].max()*1.5], clamp=True)
+            )
+        ).add_params(
+            scales_selection
+        ).properties(
+            width='container',
+            height=350
+        )
+        st.altair_chart(chart, width="stretch")    
 
 
 @st.fragment(run_every="1s")
