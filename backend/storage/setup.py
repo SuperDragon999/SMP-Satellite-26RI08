@@ -9,9 +9,10 @@ c = database.cursor()
 
 c.execute('''
 CREATE TABLE IF NOT EXISTS data(
-          ID INTEGER PRIMARY KEY AUTOINCREMENT,
-          data TEXT NOT NULL,
-          snr REAL
+          ID INTEGER PRIMARY KEY,
+          type TEXT,
+          data INTEGER,
+          snr FLOAT
 );
 ''')
 

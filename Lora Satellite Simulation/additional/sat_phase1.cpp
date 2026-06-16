@@ -56,6 +56,8 @@ void setup() {
         17,          // Output Power (dBm)
         8            // Preamble length
     );
+
+    radio.setFrequency((double)(915 + 0.0220121799763));
     
     if (state != RADIOLIB_ERR_NONE) {
         while (true) {
@@ -75,21 +77,21 @@ volatile long long loopStart;
 void loop() {
     loopStart = millis();
 
-    radio.standby(); // clears any stuck rx registers
-    radio.setFrequency((double)(915 + 0.0220121799763));
+    radio.standby();
 
-    // 2. Compile system frame payload structures
+    // 1. Compile system frame payload structures
     txData.identifier = ID;
     txData.messageId = count++;
     txData.telemetry = 123;
     txData.telemetry2 = 472;
     
-    // 3. Dispatch telemetry
+    // 2. Dispatch telemetry
     int txState = radio.transmit((uint8_t*)&txData, sizeof(txData));
     yield();
     
     if (txState == RADIOLIB_ERR_NONE) {
         neopixelWrite(RGB_DATA_PIN, 0, 0, 20); // Blue indicates down-link transmission confirmed
+        delay(20);
         neopixelWrite(RGB_DATA_PIN, 0, 0, 0);
     } else {
         neopixelWrite(RGB_DATA_PIN, 50, 0, 0);

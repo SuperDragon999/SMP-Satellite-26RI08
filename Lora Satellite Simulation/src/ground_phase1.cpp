@@ -65,6 +65,7 @@ void setup() {
             neopixelWrite(RGB_DATA_PIN, 100, 0, 0); // Red-blue flashes indicates initialization failure
             delay(200);
             neopixelWrite(RGB_DATA_PIN, 0, 0, 0);
+            delay(10);
             neopixelWrite(RGB_DATA_PIN, 0, 100, 0);
             delay(200);
         }
@@ -79,7 +80,8 @@ void setup() {
             neopixelWrite(RGB_DATA_PIN, 100, 0, 0); // Red-blue flashes on setup error, blocks initialization
             Serial.print("Error: ");
             Serial.println(state);
-            delay(200);
+            neopixelWrite(RGB_DATA_PIN, 0, 0, 0);
+            delay(10);
             neopixelWrite(RGB_DATA_PIN, 0, 100, 0);
             delay(200);
         }
@@ -90,6 +92,7 @@ void setup() {
 }
 
 volatile long long loopStart;
+volatile long int count;
 void loop() {
     loopStart = millis();
     if (packetReceived) {
@@ -98,6 +101,7 @@ void loop() {
         int state = radio.readData((uint8_t*)&rxData, sizeof(rxData));
         if (state == RADIOLIB_ERR_NONE) {
             float snr = radio.getSNR();
+            count = rxData.messageId;
             char json[128];
             snprintf(json, sizeof(json),
             "{\"type\":\"telemetry\",\"id\":%d,\"tel\":%lu,\"sf\":%d,\"bw\":%.1f,\"snr\":%.2f}",
@@ -112,7 +116,7 @@ void loop() {
         } else {
             neopixelWrite(RGB_DATA_PIN, 50, 0, 0); // Red flash for frame checksum or CRC failure
             char json[128];
-            snprintf(json, sizeof(json),"{\"type\":\"DATA_ERR\"}");
+            snprintf(json, sizeof(json),"{\"type\":\"DATA_ERR\",\"id\": %ld}", (count + 1));
             Serial.println(json);
         }
         

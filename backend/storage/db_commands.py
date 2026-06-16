@@ -74,35 +74,6 @@ def count(val, column):
     data = pd.read_sql(query, conn)
     return int(data.iloc[0, 0])
 
-def get_telemetry_df():
-    '''
-    Get jitter and latency from data.
-    '''
-    conn = sqlite3.connect(db_path)
-    
-    query = """
-    WITH LatencyDelta AS (
-        SELECT 
-            ID,
-            latency,
-            LAG(latency) OVER (ORDER BY ID) as prev_latency
-        FROM data WHERE type != 'DROP'
-    )
-    SELECT 
-        ID,
-        latency,
-        CASE 
-            WHEN prev_latency IS NULL THEN 0
-            ELSE ABS(latency - prev_latency)
-        END as jitter
-    FROM LatencyDelta
-    ORDER BY ID ASC;
-    """
-    
-    df = pd.read_sql_query(query, conn)
-    conn.close()
-    return df
-
 def set_record(mode):
     '''
     Set recording mode on the satellite network
