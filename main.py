@@ -1,6 +1,5 @@
 import subprocess
 import os
-import sys
 from pathlib import Path
 from backend.services.fetch import *
 
@@ -12,10 +11,5 @@ subprocess.Popen(["streamlit","run","app/app.py"],
 env=env
 )
 
-#Pyserial Code
 config=SerialConfig("COM10", 921600, asyncio.Queue())
 asyncio.run(fetchSerial(config))
-
-# Websocket code
-# uri = "ws://192.168.4.1/telemetry"
-# asyncio.run(stream_telemetry(uri))

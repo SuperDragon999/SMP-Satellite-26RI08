@@ -100,18 +100,21 @@ async def fetchSerial(config: SerialConfig):
     queue = config.queue
     worker_task = None
     
-    try:
-        while True:
-            if not await asyncio.to_thread(get_record):
-                if not logged:
-                    print("[IDLE] Recording is off, no query is being made.")
-                    logged = True
-                await asyncio.sleep(0.1)
-                continue
+    while True:
+        if not await asyncio.to_thread(get_record):
+            if not logged:
+                print("[IDLE] Recording is off, no query is being made.")
+                logged = True
+            await asyncio.sleep(0.1)
+            continue
+        try:
+            reader, writer = await serial_asyncio.open_serial_connection(
+                url=config.port,
+                baudrate=config.baudrate
+            )
+            print("[+] Serial connection established!")
             
-            logged = False
-            
-            # Start the worker loop
+            # Start the database worker
             if worker_task is None or worker_task.done():
                 if get_mode() == 0:
                     worker_task = asyncio.create_task(gnd_worker(queue))
@@ -119,54 +122,31 @@ async def fetchSerial(config: SerialConfig):
                     worker_task = asyncio.create_task(sat_worker(queue))
                 print(f"[+] Initialized {"GND" if get_mode() == 0 else "SAT"} worker task.")
             
-            print(f"[+] Connecting to serial port at {config.port}")
-            try:
-                reader, writer = await serial_asyncio.open_serial_connection(
-                    url=config.port,
-                    baudrate=config.baudrate
-                )
-                print("[+] Serial connection established!")
-                
-                while True:
-                    raw = await reader.readline()
-                    line = raw.decode("utf-8").strip()
-                    if not line:
-                        continue
-                    print(f"[SERIAL] {line}")
-        
-                    # Verify record status
-                    if not await asyncio.to_thread(get_record):
-                        break
-                    try:
-                        packet = json.loads(line)
-                        await queue.put(packet)
-                    except json.JSONDecodeError:
-                        print(f"[-] Invalid JSON packet: {line}")
-                        
-            except Exception as e:
-                print(f"[-] Serial hardware/connection error: {e}")
-                print("[*] Reconnecting in 3 seconds...")
+            while True:
+                raw = await reader.readline()
+                line = raw.decode("utf-8").strip()
+                if not line:
+                    continue
+            
                 if not await asyncio.to_thread(get_record):
                     break
-                await asyncio.sleep(3)
-            finally:
-                # Ensure the network/serial sockets are closed properly on break/exit
-                try:
-                    writer.close()
-                    await writer.wait_closed()
-                except NameError:
-                    pass
-                
-            # If we exited the inner read loop because recording stopped
-            if not await asyncio.to_thread(get_record):
-                print("[-] Recording stopped by user.")
-                break
 
-    finally:
-        # Global cleanup when fetchSerial completely exits
-        if worker_task and not worker_task.done():
-            worker_task.cancel()
+                print(f"[SERIAL] {line}")
+                try:
+                    packet = json.loads(line)
+                    await queue.put(packet)
+                except json.JSONDecodeError:
+                    print(f"[-] Invalid JSON packet: {line}")
+                    
+        except Exception as e:
+            # This block only triggers if the wire is unplugged or the port crashes
+            print(f"[-] Link drop: {e}")
+            print("[*] Attempting physical link reconnection in 3 seconds...")
+            await asyncio.sleep(3)
+            
+        finally:
             try:
-                await worker_task
-            except asyncio.CancelledError:
-                print("[*] Ground worker successfully terminated.")
+                writer.close()
+                await writer.wait_closed()
+            except NameError:
+                pass
