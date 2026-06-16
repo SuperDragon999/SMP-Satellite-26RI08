@@ -3,37 +3,47 @@ import pandas as pd
 import altair as alt
 from backend.storage.db_commands import *
 
-st.title('Ground to Satellite Telemetry Dashboard')
+st.title('TT&C Dashboard')
 
-state = get_record()
-if state == 0:
-    with st.status("Control data input", expanded=True) as status:
-        if st.button("Start Recording"):
-            set_record(1)
-            status.update(
-                label="Recording data...", state="running", expanded=False
-            )
-            st.rerun()
-elif state == 1:
-    with st.popover("Stop Recording"):
-        st.warning("Are you sure you want to stop recording?")
+col1, col2 = st.columns([0.5, 0.5], vertical_alignment="center")
+with col1:
+    with st.container(border=True, height=200):
+        state = get_record()
+        st.write("Control data input")
+        if state == 0:
+            if st.button("Start Recording", type="primary", use_container_width=True):
+                set_record(1)
+                st.rerun()
+        else:
+            # Active State: Urgent Status Indicator & Stop Mechanism
+            st.error("⏺ System is currently recording data...")
+            
+            with st.popover("Stop Recording", use_container_width=True):
+                st.warning("This stop the current recording. Are you sure?")
+                if st.button("Yes, stop recording", type="primary", use_container_width=True):
+                    set_record(0)
+                    st.rerun()
+with col2:
+    with st.container(border=True, height=200):
+        options = ["SAT", "GND"]
+        mode = "SAT" if get_mode() else "GND"
+        if state == 0:
+            selection = st.pills("Recording modes", options, selection_mode="single", default=mode, required=True)
+        else:
+            selection = st.pills("Recording modes", options, selection_mode="single", disabled=True)
+            st.info("You cannot change the configuration while recording.")
 
-        if st.button("Yes, stop", type="primary"):
-            set_record(0)
-            st.rerun()
-
+total_packets = count(1, 1)
 def metrics():
-    #Metrics
     with st.container(horizontal=True, gap="medium"):
         cols = st.columns(6, gap="medium", width=1500)
         with cols[0]:
-            pass
-            # st.metric(
-            #     "Average latency",
-            #     f"{avg_latency:.1f} μs",
-            # )
+            st.metric(
+                "Packets logged",
+                f"{total_packets}",
+            )
 
-    # st.subheader("Latency graph")
+    st.subheader("SNR Graph")
     # chart = alt.Chart(df2).mark_line(color='#38bdf8').encode(
     #     x=alt.X(
     #         'ID:Q', 
@@ -59,7 +69,7 @@ def metrics():
 
 @st.fragment(run_every="1s")
 def checkData():
-    total_packets = 0 # Edit to include packet count
+    total_packets = count(1, 1)
     if (total_packets > 0):
         metrics()
     else:

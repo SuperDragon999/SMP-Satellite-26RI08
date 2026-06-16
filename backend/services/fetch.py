@@ -1,10 +1,9 @@
 import asyncio
-import websockets
 import serial_asyncio
 import json
 from backend.storage.db_commands import *
 
-async def db_worker(queue):
+async def gnd_worker(queue):
     while True:
         job = await queue.get()
         try:
@@ -22,7 +21,7 @@ async def db_worker(queue):
         finally:
             queue.task_done()
 
-async def db_worker2(queue):
+async def sat_worker(queue):
     while True:
         job = await queue.get()
         try:
@@ -69,7 +68,7 @@ class SerialJSONProtocol(asyncio.Protocol):
 async def fetchserial(port, baud):
     queue = asyncio.Queue()
 
-    worker_task = asyncio.create_task(db_worker(queue))
+    worker_task = asyncio.create_task(gnd_worker(queue))
 
     loop = asyncio.get_running_loop()
 
@@ -86,62 +85,88 @@ async def fetchserial(port, baud):
     await worker_task
 
 class SerialConfig:
-    def __init__(self, port, baudrate):
+    def __init__(self, port, baudrate, queue):
         self.port = port
         self.baudrate = baudrate
+        self.queue = queue
     def handle_json(self,obj):
         if not get_record():
             return
         else:
             self.queue.put_nowait(obj)
 
-async def fetchSerial(config: SerialConfig, queue: asyncio.Queue):
+async def fetchSerial(config: SerialConfig):
     logged = False
-    while True:
-        if not await asyncio.to_thread(get_record):
-            if not logged:
-                print("[IDLE] Recording is off, no query is being made.")
-                logged = True
-            await asyncio.sleep(0.1)
-            continue
-        worker_task = asyncio.create_task(db_worker(queue))
-        print(f"[+] Connecting to serial port {config.port}")
-        reader, writer = await serial_asyncio.open_serial_connection(
-            url=config.port,
-            baudrate=config.baudrate
-        )
-
-        print("[+] Serial connection established")
-
-        queue = asyncio.Queue()
-        worker_task = asyncio.create_task(db_worker(queue))
-        
-        while await asyncio.to_thread(get_record):
+    queue = config.queue
+    worker_task = None
+    
+    try:
+        while True:
+            if not await asyncio.to_thread(get_record):
+                if not logged:
+                    print("[IDLE] Recording is off, no query is being made.")
+                    logged = True
+                await asyncio.sleep(0.1)
+                continue
+            
+            logged = False
+            
+            # Start the worker loop
+            if worker_task is None or worker_task.done():
+                if get_mode() == 0:
+                    worker_task = asyncio.create_task(gnd_worker(queue))
+                elif get_mode() == 1:
+                    worker_task = asyncio.create_task(sat_worker(queue))
+                print(f"[+] Initialized {"GND" if get_mode() == 0 else "SAT"} worker task.")
+            
+            print(f"[+] Connecting to serial port at {config.port}")
             try:
-                raw = await reader.readline()
-                line = raw.decode("utf-8").strip() 
-                if not line:
-                    continue
-                try:
+                reader, writer = await serial_asyncio.open_serial_connection(
+                    url=config.port,
+                    baudrate=config.baudrate
+                )
+                print("[+] Serial connection established!")
+                
+                while True:
+                    raw = await reader.readline()
+                    line = raw.decode("utf-8").strip()
+                    if not line:
+                        continue
                     print(f"[SERIAL] {line}")
+        
+                    # Verify record status
                     if not await asyncio.to_thread(get_record):
                         break
-                    else:
+                    try:
                         packet = json.loads(line)
                         await queue.put(packet)
-                except json.JSONDecodeError:
-                    print(f"[-] Invalid JSON packet: {line}")
-                    await queue.join()
-                    worker_task.cancel()
+                    except json.JSONDecodeError:
+                        print(f"[-] Invalid JSON packet: {line}")
+                        
             except Exception as e:
-                    print(f"[-] Serial connection error: {e}")
-                    print("[*] Reconnecting in 3 seconds...")
-                    if not await asyncio.to_thread(get_record):
-                        break
-                    await asyncio.sleep(3)
+                print(f"[-] Serial hardware/connection error: {e}")
+                print("[*] Reconnecting in 3 seconds...")
+                if not await asyncio.to_thread(get_record):
+                    break
+                await asyncio.sleep(3)
             finally:
-                logged = False
-        
-        print(f"[-] Recording stopped by user.")
-        await queue.join()
-        worker_task.cancel()
+                # Ensure the network/serial sockets are closed properly on break/exit
+                try:
+                    writer.close()
+                    await writer.wait_closed()
+                except NameError:
+                    pass
+                
+            # If we exited the inner read loop because recording stopped
+            if not await asyncio.to_thread(get_record):
+                print("[-] Recording stopped by user.")
+                break
+
+    finally:
+        # Global cleanup when fetchSerial completely exits
+        if worker_task and not worker_task.done():
+            worker_task.cancel()
+            try:
+                await worker_task
+            except asyncio.CancelledError:
+                print("[*] Ground worker successfully terminated.")

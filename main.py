@@ -13,9 +13,8 @@ env=env
 )
 
 #Pyserial Code
-config=SerialConfig("COM10", 921600)
-queue = asyncio.Queue()
-asyncio.run(fetchSerial(config, queue))
+config=SerialConfig("COM10", 921600, asyncio.Queue())
+asyncio.run(fetchSerial(config))
 
 # Websocket code
 # uri = "ws://192.168.4.1/telemetry"

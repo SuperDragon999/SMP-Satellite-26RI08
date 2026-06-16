@@ -1,7 +1,5 @@
 # Set up SQLite
 import sqlite3
-import pandas as pd
-import json
 
 # Data Logs
 database = sqlite3.connect("backend/storage/data/logs.db")
@@ -24,21 +22,25 @@ CREATE TABLE IF NOT EXISTS toa (
 );
 ''')
 
+# 0 means not recording, 1 means recording
+# 0 means GND mode, 1 means SAT mode
+c.execute('''DROP TABLE ctrl;''')
 c.execute('''
 CREATE TABLE IF NOT EXISTS ctrl(
-          record INTEGER
+          record INTEGER,
+          mode INTEGER
 );
 ''')
 
 query = "SELECT COUNT(*) FROM ctrl"
-data = pd.read_sql(query, database)
-ctrl_size = int(data.iloc[0, 0])
+result = c.execute(query)
+ctrl_size = result.fetchone()[0]
 
 if ctrl_size == 0:
-    x = 0  # default recording status is 0
+    # Default recording status is 0, recording mode is ground
     c.execute('''
-    INSERT INTO ctrl VALUES (?);
-    ''', (x, ))
+    INSERT INTO ctrl VALUES (?, ?);
+    ''', (0, 0))
 
 database.commit()
 database.close()
