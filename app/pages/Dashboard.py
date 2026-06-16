@@ -3,7 +3,7 @@ import pandas as pd
 import altair as alt
 from backend.storage.db_commands import *
 
-st.title('Inter-satellite Connection Tracking')
+st.title('Ground to Satellite Telemetry Dashboard')
 
 state = get_record()
 if state == 0:
