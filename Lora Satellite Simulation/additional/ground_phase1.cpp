@@ -23,7 +23,7 @@ void setFlag() {
 }
 
 uint8_t currentSF = 7; // CHANGE BEFORE EACH TEST
-float currentBW = 125; // CHANGE BEFORE EACH TEST
+float currentBW = 250; // CHANGE BEFORE EACH TEST
 
 struct SatellitePayload {
     uint8_t identifier;

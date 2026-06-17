@@ -42,7 +42,7 @@ with col2:
             selection = st.pills("Recording modes", options, selection_mode="single", disabled=True)
             st.info("You cannot change the configuration while recording.")
 
-total_packets = count(1, 1)
+total_packets = count(1, 1) # sql injection here to get the total packet number
 def metrics(packets):
     scales_selection = alt.selection_interval(
         bind='scales',
@@ -102,6 +102,13 @@ def metrics(packets):
 
     elif mode == 1:
         df = getData(["ID", "time"], 0) # no failed packets
+        avg_toa_df = getData(["time"], 0)["time"]
+        avg_toa = avg_toa_df.mean() if not avg_toa_df.empty else 0.0
+        with cols[2]:
+            st.metric(
+                "Average ToA", 
+                f"{avg_toa:.1f} μs"
+            )
         st.subheader("ToA Graph")
         chart = alt.Chart(df).mark_line(color='#38bdf8').encode(
             x=alt.X(
