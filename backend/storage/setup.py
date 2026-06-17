@@ -1,4 +1,5 @@
-# Set up SQLite
+# Run to set up SQLite table
+# WARNING: WILL RESET YOUR RECORDING SETTINGS
 import sqlite3
 
 # Data Logs

@@ -101,7 +101,7 @@ void loop() {
         neopixelWrite(RGB_DATA_PIN, 50, 0, 0);
         char json[128];
         snprintf(json, sizeof(json),
-        "{\"ID\":%ld,\"time\":%lu}", -1L, 0UL);
+        "{\"ID\":%ld,\"time\":%lu}", -1L, millis()); //Failed packets give -1 as ID, and a unique timestamp using millis() to avoid duplicates
         Serial.println(json);
     }
     

@@ -127,7 +127,7 @@ void loop() {
             neopixelWrite(RGB_DATA_PIN, 0, 0, 0);
             char json[128];
             snprintf(json, sizeof(json),
-            "{\"type\":\"DATA_ERR\",\"ID\":%d,\"data1\":%lu,\"data2\":%lu,\"snr\":%.2f}", -1, 0, 0, 0.00);
+            "{\"type\":\"DATA_ERR\",\"ID\":%d,\"data1\":%lu,\"data2\":%lu,\"snr\":%.2f}", -1, millis(), 0, 0.00);
             Serial.println(json);
         }
     }
@@ -141,7 +141,7 @@ void loop() {
             neopixelWrite(RGB_DATA_PIN, 0, 0, 0);
             char json[128];
             snprintf(json, sizeof(json),
-            "{\"type\":\"LINK_ERR\",\"ID\":%d,\"data1\":%lu,\"data2\":%lu,\"snr\":%.2f}", -2, 0, 0, 0.00);
+            "{\"type\":\"LINK_ERR\",\"ID\":%d,\"data1\":%lu,\"data2\":%lu,\"snr\":%.2f}", -2, millis(), 0, 0.00);
             Serial.println(json);
         } else {
             if (millis() - lastError > 2500){
@@ -151,7 +151,7 @@ void loop() {
                 neopixelWrite(RGB_DATA_PIN, 0, 0, 0);
                 char json[128];
                 snprintf(json, sizeof(json),
-                "{\"type\":\"LINK_ERR\",\"ID\":%d,\"data1\":%lu,\"data2\":%lu,\"snr\":%.2f}", -2, 0, 0, 0.00);
+                "{\"type\":\"LINK_ERR\",\"ID\":%d,\"data1\":%lu,\"data2\":%lu,\"snr\":%.2f}", -2, millis(), 0, 0.00);
                 Serial.println(json);
             }          
         }   

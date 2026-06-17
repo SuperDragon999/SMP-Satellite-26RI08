@@ -25,11 +25,106 @@ elif state == 1:
             set_record(0)
             st.rerun()
 
-with st.popover("Clear Data"):
-    st.warning("Are you sure you want to clear all logged data? This cannot be undone.")
-
-    if st.button("Yes, clear database", type="primary"):
-        clearData()
-        st.toast("Data table has been cleared", icon="🗑️")
-
 display()
+col1, col2 = st.columns([0.5, 0.5], vertical_alignment="center")
+mode = get_mode()
+if mode == 0:
+    df_manage = getData(["ID", "type", "data1", "data2", "snr"])
+elif mode == 1:
+    df_manage = getData(["ID", "time"])
+
+if not df_manage.empty:
+    with col1:
+        with st.container():
+                st.subheader("Clear table")
+                st.warning("Are you sure you want to clear all logged data? This cannot be undone.")
+                safety_lock = st.checkbox("I confirm I want to wipe this table.")
+                if st.button("Yes, clear database", type="primary", disabled=not safety_lock):
+                    clearData()
+                    st.toast("Data table has been cleared", icon="🗑️")
+    with col2:
+        with st.container():
+            if mode == 0:
+                with st.container():
+                    st.subheader("Delete entry from GND data table.")
+                    st.warning("Deletion actions cannot be undone.")
+                    
+                    # Use columns to lay out the 5 parameters cleanly
+                    r1_col1, r1_col2 = st.columns(2)
+                    with r1_col1:
+                        input_id = st.number_input("Enter Frame ID:", step=1, value=0, placeholder="Type ID...")
+                    with r1_col2:
+                        # Select from the existing packet types in the DB to avoid typos
+                        unique_types = list(df_manage["type"].unique())
+                        input_type = st.selectbox("Select Packet Type:", options=unique_types, index=None, placeholder="Choose type...")
+                    
+                    r2_col1, r2_col2, r2_col3 = st.columns(3)
+                    with r2_col1:
+                        input_d1 = st.number_input("Enter Data 1:", step=1, value=None, placeholder="Type data1...")
+                    with r2_col2:
+                        input_d2 = st.number_input("Enter Data 2:", step=1, value=None, placeholder="Type data2...")
+                    with r2_col3:
+                        input_snr = st.number_input("Enter exact SNR (dB):", step=0.01, value=None, placeholder="Type snr...")
+                    
+                    # Explicit confirmation checkbox
+                    safety_lock = st.checkbox("I confirm I want to wipe this specific tracking data row from history.")
+                    
+                    # Evaluate if all fields are validly filled out
+                    all_fields_filled = all([
+                        input_id is not None,
+                        input_type is not None,
+                        input_d1 is not None,
+                        input_d2 is not None,
+                        input_snr is not None
+                    ])
+                    
+                    # The button is disabled unless every parameter is filled and the lock is checked
+                    if st.button("Execute Deletion Routine", type="primary", disabled=not (all_fields_filled and safety_lock)):
+                        
+                        # Query our local dataframe to see if this exact entry actually exists
+                        match = df_manage[
+                            (df_manage["ID"] == input_id) & 
+                            (df_manage["type"] == input_type) & 
+                            (df_manage["data1"] == input_d1) & 
+                            (df_manage["data2"] == input_d2) & 
+                            (abs(df_manage["snr"] - input_snr) < 0.01) # type: ignore
+                        ]
+                        
+                        if not match.empty:
+                            # Execute database removal
+                            rows_removed = deleteEntry(
+                                int(input_id), 
+                                input_type, 
+                                int(input_d1), # type: ignore
+                                int(input_d2), # type: ignore
+                                float(input_snr) # type: ignore
+                            )
+
+                            st.rerun()
+                        else:
+                            st.error("Deletion Failed: No record in the database matches that exact combination of parameters. Verify your inputs.")
+            elif mode == 1:
+                with st.container():
+                    st.subheader("Delete entry from SAT ToA table.")
+                    st.warning("Deletion actions cannot be undone.")
+                    input_id = st.number_input("Enter Frame ID to verify:", step=1, value=None, placeholder="Type ID here...")
+                    input_time = st.number_input("Enter exact Time on Air (μs):", step=1, value=None, placeholder="Type ToA value here...")
+
+                    safety_lock = st.checkbox("I confirm I want to wipe this entry from the database.")
+                    
+                    # The button only executes if the inputs are filled and safety lock is ticked
+                    if st.button("Execute Deletion Routine", type="primary", disabled=not (input_id is not None and input_time is not None and safety_lock)):
+                        
+                        # Double check if the provided parameters actually exist
+                        match = df_manage[(df_manage["ID"] == input_id) & (df_manage["time"] == input_time)]
+                        
+                        if not match.empty:
+                            # Execute database removal
+                            deleteToA(int(input_id), int(input_time)) # type: ignore
+
+                            st.success(f"Success!")
+                            st.rerun()
+                        else:
+                            st.error("Deletion Failed: No record in the database matches that exact ID and Time combination. Check your inputs.")
+else:
+    st.info("Database controls are not shown as the table is currently empty.")

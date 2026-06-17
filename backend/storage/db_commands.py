@@ -29,7 +29,7 @@ def set_mode(mode):
     c = database.cursor()
     c.execute('''
     UPDATE ctrl SET mode = ?;
-    ''', (mode))
+    ''', (mode,))
     database.commit()
     database.close()
 
@@ -58,6 +58,33 @@ def addToA(id, t):
     database.commit()
     database.close()
 
+def deleteEntry(id, t, d1, d2, s):
+    '''
+    Deletes specified entry from 'data' table
+    '''
+    database = sqlite3.connect(db_path)
+    c = database.cursor()
+    c.execute('''
+        DELETE FROM data WHERE ID = ? AND type = ? AND data1 = ? AND data2 = ? AND snr = ?;
+    ''', (id, t, d1, d2, s))
+
+    database.commit()
+    database.close()
+
+def deleteToA(id, t):
+    '''
+    Deletes specified entry from 'toa' table
+    '''
+    database = sqlite3.connect(db_path)
+    c = database.cursor()
+    c.execute('''
+        DELETE FROM toa WHERE ID = ? AND time = ?;
+    ''', (id, t))
+
+    database.commit()
+    database.close()
+
+
 def readAllData():
     '''
     Read all data in table
@@ -70,14 +97,18 @@ def readAllData():
 
 def getData(columns):
     '''
-    Selectively get columns from data, NOT inclusive of invalid / dropped packets
+    Selectively get columns from tables, NOT inclusive of invalid / dropped packets
     '''
     conn = sqlite3.connect(db_path)
     
     escaped_columns = [f"[{col}]" if " " in col else col for col in columns]
     column_string = ", ".join(escaped_columns)
-    
-    query = f"SELECT {column_string} FROM data WHERE type == 'PACKET';"
+
+    record_mode = get_mode()
+    if record_mode == 0:
+        query = f"SELECT {column_string} FROM data WHERE 'type' == 'PACKET';"
+    elif record_mode == 1:
+        query = f"SELECT {column_string} FROM toa WHERE 'ID' != -1;"
     data = pd.read_sql(query, conn)
     return data
 
@@ -94,7 +125,7 @@ def clearData():
         ''')
         c.execute('''
         CREATE TABLE IF NOT EXISTS data(
-                ID INTEGER PRIMARY KEY,
+                ID INTEGER,
                 type TEXT,
                 data1 INTEGER,
                 data2 INTEGER,
