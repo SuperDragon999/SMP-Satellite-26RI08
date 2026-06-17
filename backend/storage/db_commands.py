@@ -95,9 +95,9 @@ def readAllData():
     data = pd.read_sql(query, conn)
     return data
 
-def getData(columns):
+def getData(columns, getFail):
     '''
-    Selectively get columns from tables, NOT inclusive of invalid / dropped packets
+    Selectively get columns from tables. If getFail is true, failed packets will be included, and vice versa.
     '''
     conn = sqlite3.connect(db_path)
     
@@ -105,10 +105,16 @@ def getData(columns):
     column_string = ", ".join(escaped_columns)
 
     record_mode = get_mode()
-    if record_mode == 0:
-        query = f"SELECT {column_string} FROM data WHERE 'type' == 'PACKET';"
-    elif record_mode == 1:
-        query = f"SELECT {column_string} FROM toa WHERE 'ID' != -1;"
+    if not getFail: # not getFail means you don't want failed packets, so there is selection here
+        if record_mode == 0:
+            query = f"SELECT {column_string} FROM data WHERE type = 'PACKET';"
+        elif record_mode == 1:
+            query = f"SELECT {column_string} FROM toa WHERE ID != -1;"
+    else:
+        if record_mode == 0:
+            query = f"SELECT {column_string} FROM data;"
+        elif record_mode == 1:
+            query = f"SELECT {column_string} FROM toa;"
     data = pd.read_sql(query, conn)
     return data
 

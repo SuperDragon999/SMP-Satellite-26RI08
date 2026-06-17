@@ -57,7 +57,7 @@ def metrics(packets):
             )
 
     if mode == 0:
-        df = getData(["ID", "snr"])
+        df = getData(["ID", "snr"], 0) # we do not include failed packets here
         pdr = (count("\"PACKET\"", "\"type\"") / packets * 100) if packets > 0 else 0.0
         corrupt = count("\"DATA_ERR\"", "\"type\"")
         dropped = count("\"LINK_ERR\"", "\"type\"")
@@ -101,7 +101,7 @@ def metrics(packets):
         st.altair_chart(chart, width="stretch")
 
     elif mode == 1:
-        df = getData(["ID", "time"])
+        df = getData(["ID", "time"], 0) # no failed packets
         st.subheader("ToA Graph")
         chart = alt.Chart(df).mark_line(color='#38bdf8').encode(
             x=alt.X(
