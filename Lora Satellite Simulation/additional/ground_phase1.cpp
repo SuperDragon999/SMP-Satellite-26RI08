@@ -22,7 +22,7 @@ void setFlag() {
     packetReceived = true;
 }
 
-uint8_t currentSF = 7; // CHANGE BEFORE EACH TEST
+uint8_t currentSF = 12; // CHANGE BEFORE EACH TEST
 float currentBW = 250; // CHANGE BEFORE EACH TEST
 
 struct SatellitePayload {
@@ -122,6 +122,7 @@ void loop() {
             delay(25);
             neopixelWrite(RGB_DATA_PIN, 0, 0, 0);
         } else {
+            lastPacketTime = millis();
             neopixelWrite(RGB_DATA_PIN, 50, 0, 0); // Red flash for frame checksum or CRC failure
             delay(25);
             neopixelWrite(RGB_DATA_PIN, 0, 0, 0);

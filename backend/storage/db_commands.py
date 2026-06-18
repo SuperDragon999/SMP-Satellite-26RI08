@@ -4,6 +4,15 @@ from pathlib import Path
 current_dir = Path(__file__).resolve().parent
 project_root = current_dir.parent.parent
 db_path = project_root / "backend" / "storage" / "data" / "logs.db"
+txt_config_path = project_root / "config.txt"
+
+if txt_config_path.exists():
+    with open(txt_config_path, "r") as f:
+        db_name = f.read().strip()
+else:
+    db_name = "logs"
+
+db_path = project_root / "backend" / "storage" / "data" / f"{db_name}.db"
 
 def get_mode():
     '''

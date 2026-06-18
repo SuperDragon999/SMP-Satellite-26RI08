@@ -27,7 +27,7 @@ SatellitePayload txData;
 LR1121 radio = new Module(LORA_CS, LORA_DIO9, LORA_RST, LORA_BUSY);
 
 uint8_t satSF = 7; // CHANGE BEFORE EACH TEST
-float satBW = 250; // CHANGE BEFORE EACH TEST
+float satBW = 62.5; // CHANGE BEFORE EACH TEST
 
 void setup() {
     Serial.begin(921600);

@@ -169,16 +169,5 @@ void loop() {
         }
         
         radio.startReceive();
-    } else {
-        //No Packet Received
-        neopixelWrite(RGB_DATA_PIN, 50, 0, 50); // Purple light
-        char json[128];
-        snprintf(json, sizeof(json),"{\"type\":\"LINK_ERR\"}");
-        Serial.println(json);
-    }
-
-    long long end = millis();
-    if (end - loopStart <= 2500){
-        delay(2500 - (end - loopStart)); //2.5 second gap
     }
 }

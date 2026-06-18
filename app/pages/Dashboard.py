@@ -49,7 +49,10 @@ def metrics(packets):
         encodings=['x']
     )
     with st.container(horizontal=True, gap="medium"):
-        cols = st.columns(6, gap="medium", width=1500)
+        if mode == 0:
+            cols = st.columns(5, gap="medium", width=1500)
+        elif mode == 1:
+            cols = st.columns(3, gap="medium", width=1500)
         with cols[0]:
             st.metric(
                 "Packets logged",
@@ -58,6 +61,7 @@ def metrics(packets):
 
     if mode == 0:
         df = getData(["ID", "snr"], 0) # we do not include failed packets here
+        avg_snr = getData(["snr"], 0)["snr"].mean()
         pdr = (count("\"PACKET\"", "\"type\"") / packets * 100) if packets > 0 else 0.0
         corrupt = count("\"DATA_ERR\"", "\"type\"")
         dropped = count("\"LINK_ERR\"", "\"type\"")
@@ -77,6 +81,11 @@ def metrics(packets):
                 "Dropped packets", 
                 f"{dropped}"
             )
+        with cols[4]:
+            st.metric(
+                "Average SNR",
+                f"{avg_snr} dB"
+            )
         st.subheader("SNR Graph")
         chart = alt.Chart(df).mark_line(color='#38bdf8').encode(
             x=alt.X(
@@ -90,7 +99,7 @@ def metrics(packets):
             y=alt.Y(
                 'snr:Q', 
                 title='SNR (dB)',
-                scale=alt.Scale(domain=[0, df['snr'].max()*1.5], clamp=True)
+                scale=alt.Scale(domain=[df['snr'].min()*1.5, df['snr'].max()*1.5], clamp=True)
             )
         ).add_params(
             scales_selection
@@ -104,10 +113,17 @@ def metrics(packets):
         df = getData(["ID", "time"], 0) # no failed packets
         avg_toa_df = getData(["time"], 0)["time"]
         avg_toa = avg_toa_df.mean() if not avg_toa_df.empty else 0.0
-        with cols[2]:
+        total_toa_df = getData(["time"], 0)["time"]
+        toal_toa = total_toa_df.sum() / 1000000 
+        with cols[1]:
             st.metric(
                 "Average ToA", 
                 f"{avg_toa:.1f} μs"
+            )
+        with cols[2]:
+            st.metric(
+                "Total ToA",
+                f"{toal_toa} s"
             )
         st.subheader("ToA Graph")
         chart = alt.Chart(df).mark_line(color='#38bdf8').encode(
