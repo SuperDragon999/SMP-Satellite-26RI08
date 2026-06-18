@@ -32,17 +32,6 @@ def setup(db):
     );
     ''')
 
-    c.execute('''
-    DELETE FROM toa
-    WHERE ID = 246;
-    ''')
-
-    # c.execute('''
-    # DELETE FROM toa
-    # WHERE ID BETWEEN 225 AND 230;
-    # ''')
-
-
     query = "SELECT COUNT(*) FROM ctrl"
     result = c.execute(query)
     ctrl_size = result.fetchone()[0]

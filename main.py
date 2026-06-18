@@ -6,6 +6,7 @@ from backend.storage.setup import *
 
 name = input("Enter name of db file: ")
 database = sqlite3.connect(f"backend/storage/data/{name}.db")
+
 setup(database)
 with open("config.txt", "w") as f:
     f.write(name)
