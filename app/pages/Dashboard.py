@@ -60,8 +60,8 @@ def metrics(packets):
             )
 
     if mode == 0:
-        df = getData(["ID", "snr"], 0) # we do not include failed packets here
-        avg_snr = getData(["snr"], 0)["snr"].mean()
+        # df = getData(["ID", "snr"], 0) # we do not include failed packets here
+        # avg_snr = getData(["snr"], 0)["snr"].mean()
         pdr = (count("\"PACKET\"", "\"type\"") / packets * 100) if packets > 0 else 0.0
         corrupt = count("\"DATA_ERR\"", "\"type\"")
         dropped = count("\"LINK_ERR\"", "\"type\"")
@@ -81,33 +81,33 @@ def metrics(packets):
                 "Dropped packets", 
                 f"{dropped}"
             )
-        with cols[4]:
-            st.metric(
-                "Average SNR",
-                f"{avg_snr} dB"
-            )
-        st.subheader("SNR Graph")
-        chart = alt.Chart(df).mark_line(color='#38bdf8').encode(
-            x=alt.X(
-                'ID:Q', 
-                title='Frame ID',
-                axis=alt.Axis(format='d', tickMinStep=1),
-                scale=alt.Scale(
-                    domain=[df['ID'].min(), df['ID'].max()],            
-                    clamp=True)
-            ),
-            y=alt.Y(
-                'snr:Q', 
-                title='SNR (dB)',
-                scale=alt.Scale(domain=[df['snr'].min()*1.5, df['snr'].max()*1.5], clamp=True)
-            )
-        ).add_params(
-            scales_selection
-        ).properties(
-            width='container',
-            height=350
-        )
-        st.altair_chart(chart, width="stretch")
+        # with cols[4]:
+        #     st.metric(
+        #         "Average SNR",
+        #         f"{avg_snr} dB"
+        #     )
+        # st.subheader("SNR Graph")
+        # chart = alt.Chart(df).mark_line(color='#38bdf8').encode(
+        #     x=alt.X(
+        #         'ID:Q', 
+        #         title='Frame ID',
+        #         axis=alt.Axis(format='d', tickMinStep=1),
+        #         scale=alt.Scale(
+        #             domain=[df['ID'].min(), df['ID'].max()],            
+        #             clamp=True)
+        #     ),
+        #     y=alt.Y(
+        #         'snr:Q', 
+        #         title='SNR (dB)',
+        #         scale=alt.Scale(domain=[df['snr'].min()*1.5, df['snr'].max()*1.5], clamp=True)
+        #     )
+        # ).add_params(
+        #     scales_selection
+        # ).properties(
+        #     width='container',
+        #     height=350
+        # )
+        # st.altair_chart(chart, width="stretch")
 
     elif mode == 1:
         df = getData(["ID", "time"], 0) # no failed packets

@@ -29,7 +29,7 @@ display()
 
 mode = get_mode()
 if mode == 0:
-    df_manage = getData(["ID", "type", "data1", "data2", "snr"], 1)
+    df_manage = getData(["ID", "type", "data1", "data2", "status"], 1) # Phase 2
 elif mode == 1:
     df_manage = getData(["ID", "time"], 1)
 
@@ -55,7 +55,7 @@ if not df_manage.empty:
                 with r2_col2:
                     input_d2 = st.number_input("Enter Data 2:", step=1, value=None, placeholder="Type data2...")
                 with r2_col3:
-                    input_snr = st.number_input("Enter exact SNR (dB):", step=0.01, value=None, placeholder="Type snr...")
+                    input_status = st.number_input("Enter exact status", step=1, value=None, placeholder="Type status...") # Phase 2
                 
                 # Explicit confirmation checkbox
                 safety_lock = st.checkbox("I confirm I want to wipe this specific tracking data row from history.")
@@ -66,7 +66,7 @@ if not df_manage.empty:
                     input_type is not None,
                     input_d1 is not None,
                     input_d2 is not None,
-                    input_snr is not None
+                    input_status is not None
                 ])
                 
                 # The button is disabled unless every parameter is filled and the lock is checked
@@ -78,7 +78,7 @@ if not df_manage.empty:
                         (df_manage["type"] == input_type) & 
                         (df_manage["data1"] == input_d1) & 
                         (df_manage["data2"] == input_d2) & 
-                        (abs(df_manage["snr"] - input_snr) < 0.01) # type: ignore
+                        (df_manage["status"] == input_status) # type: ignore
                     ]
                     
                     if not match.empty:
@@ -88,7 +88,7 @@ if not df_manage.empty:
                             input_type, 
                             int(input_d1), # type: ignore
                             int(input_d2), # type: ignore
-                            float(input_snr) # type: ignore
+                            float(input_status) # type: ignore
                         )
 
                         st.rerun()

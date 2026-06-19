@@ -11,6 +11,7 @@ if txt_config_path.exists():
 
 db_path = project_root / "backend" / "storage" / "data" / f"{db_name}.db"
 
+# Phase 1 db functions
 def get_mode():
     '''
     Get recording mode
@@ -197,3 +198,65 @@ def get_record():
     if state[0] == 1:
         return True
     return False
+
+# Phase 2 db functions
+def addEntry2(id, t, d1, d2, s):
+    database = sqlite3.connect(db_path)
+    c = database.cursor()
+    c.execute('''
+        INSERT INTO data (ID, type, data1, data2, status)
+              VALUES (?, ?, ?, ?, ?);
+    ''', (id, t, d1, d2, s))
+
+    #debug line
+    print(f"Added into data table {id}, {t}, {d1}, {d2}, {s}.")
+
+    database.commit()
+    database.close()
+
+def clearData2():
+    '''
+    Clear all data, depends on which mode you are using. SAT mode clears the ToA table, GND mode clears the Data table.
+    '''
+    record_mode = get_mode()
+    database = sqlite3.connect(db_path)
+    c = database.cursor()
+    if record_mode == 0:
+        c.execute('''
+            DROP TABLE data;
+        ''')
+        c.execute('''
+        CREATE TABLE IF NOT EXISTS data(
+                ID INTEGER,
+                type TEXT,
+                data1 INTEGER,
+                data2 INTEGER,
+                status INTEGER
+        );
+        ''')
+    else:
+        c.execute('''
+            DROP TABLE processing;
+        ''')
+        c.execute('''
+        CREATE TABLE IF NOT EXISTS processing (
+                ID INTEGER,
+                time INTEGER
+        );
+        ''')
+
+    database.commit()
+    database.close()
+
+def deleteEntry2(id, t, d1, d2, s):
+    '''
+    Deletes specified entry from 'data' table
+    '''
+    database = sqlite3.connect(db_path)
+    c = database.cursor()
+    c.execute('''
+        DELETE FROM data WHERE ID = ? AND type = ? AND data1 = ? AND data2 = ? AND status = ?;
+    ''', (id, t, d1, d2, s))
+
+    database.commit()
+    database.close()

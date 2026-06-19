@@ -392,7 +392,7 @@ void loop() {
                 neopixelWrite(RGB_DATA_PIN, 0, 0, 0);
                 char json[128];
                 snprintf(json, sizeof(json),
-                "{\"type\":\"LINK_ERR\",\"ID\":%d,\"data1\":%lu,\"data2\":%lu,\"status\":%i}", -2, millis(), 0, status);
+                "{\"type\":\"LINK_ERR\",\"ID\":%d,\"data1\":%lu,\"data2\":%lu,\"status\":%i}", -2, millis(), rxData.messageID, status);
                 Serial.println(json);
             } else if (status == 2){
                 // force crc failure
