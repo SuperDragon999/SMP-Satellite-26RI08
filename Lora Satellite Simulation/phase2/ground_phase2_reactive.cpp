@@ -40,6 +40,55 @@ struct AckPayload {
 uint8_t currentSF = 12; // CHANGE BEFORE EACH TEST
 float currentBW = 250; // CHANGE BEFORE EACH TEST
 
+
+struct LinkConfig {
+    uint8_t sf;
+    float bw;
+    uint8_t bwCode;
+};
+
+const LinkConfig operationalModes[] = {
+    {7,  500.0, 2}, // Tier 0 (Fastest)
+    {7,  250.0, 1}, // Tier 1
+    {7,  125.0, 0}, // Tier 2
+    {12, 250.0, 1}, // Tier 3 (Most Resilient)
+};
+const uint8_t totalModes = 4;
+
+// Track active mode indexes
+uint8_t activeModeIdx = 4;
+
+LinkConfig react(bool packetLanded, float sampledHardwareSnr) {
+    // Handle the timeout
+    if (!packetLanded) {
+        if (activeModeIdx < totalModes - 1) {
+            activeModeIdx++; // Blindly step down to a more resilient tier
+        }
+        return operationalModes[activeModeIdx];
+    }
+
+    uint8_t currentSF = operationalModes[activeModeIdx].sf;
+    
+    // Determine the hard decode floor for our current hardware state
+    double snrFloor = (currentSF == 7) ? -7.5 : -20.0;
+    double currentCushion = (double)sampledHardwareSnr - snrFloor;
+
+    // Trigger an emergency downshift if we are within 3 dB of dropping the connection
+    if (currentCushion < 3.0) {
+        if (activeModeIdx < totalModes - 1) {
+            activeModeIdx++; 
+        }
+    } 
+    // Upshift to a faster data rate if we have a 6 dB buffer of safety
+    else if (currentCushion > 6.0) {
+        if (activeModeIdx > 0) {
+            activeModeIdx--; 
+        }
+    }
+
+    return operationalModes[activeModeIdx];
+}
+
 volatile long long lastPacketTime = 0;
 volatile long long lastError = 0;
 volatile long int count;
@@ -365,6 +414,30 @@ int evaluatelinkConstraints(uint32_t secondIdx) {
     return 0; // everything passes
 }
 
+double getSimulatedSNR(uint32_t secondIdx, float rawHardwareSnr, float activeBW) {
+    if (secondIdx >= 800) return -25.0; 
+
+    double currentDistance = distances[secondIdx];
+    double baselineMaxDist = 1304667.969; 
+    double baselineBW = 125.0;           
+
+    double pathLossDelta = 20.0 * log10(currentDistance / baselineMaxDist);
+    double noiseFloorDelta = 10.0 * log10(activeBW / baselineBW);
+
+    return (double)rawHardwareSnr - pathLossDelta - noiseFloorDelta;
+}
+
+double getSimulatedRSSI(uint32_t secondIdx, float rawHardwareRssi) {
+    if (secondIdx >= 800) return -140.0; 
+
+    double currentDistance = distances[secondIdx];
+    double baselineMaxDist = 1304667.969; 
+
+    double pathLossDelta = 20.0 * log10(currentDistance / baselineMaxDist);
+
+    return (double)rawHardwareRssi - pathLossDelta;
+}
+
 void loop() {
     if (packetReceived) {
         packetReceived = false;
@@ -373,11 +446,27 @@ void loop() {
 
         radio.startReceive();
         if (state == RADIOLIB_ERR_NONE && rxData.identifier == 1) {
+            //BUGS, DO NOT RUN
             link_down = false;
             float snr = radio.getSNR();
-            uint32_t currentSecond = rxData.messageID;
-            int status = evaluatelinkConstraints(currentSecond);
+            float rssi = radio.getRSSI();
 
+            uint32_t t = rxData.messageID;
+            int status = evaluatelinkConstraints(t);
+            double simSnr = getSimulatedSNR(t, snr, currentBW);
+            double simRssi = getSimulatedRSSI(t, rssi);
+
+            LinkConfig recommendedMode = react(true, simSnr);
+            
+            ackData.packetType = 0x01;
+            ackData.identifier = ID;
+            ackData.messageId = t;
+            ackData.targetSF = recommendedMode.sf;
+            ackData.targetBWCode = recommendedMode.bwCode;
+            
+            neopixelWrite(RGB_DATA_PIN, 0, 50, 0);
+            
+            radio.transmit((uint8_t*)&ackData, sizeof(ackData));
             char json[128];
             snprintf(json, sizeof(json),
             "{\"type\":\"PACKET\",\"ID\":%d,\"data1\":%lu,\"data2\":%lu,\"status\":%i}",
@@ -417,6 +506,11 @@ void loop() {
         } else {
             if (millis() - lastError > 1000){
                 lastError = millis();
+                LinkConfig fallbackMode = react(false, -25.0);
+                radio.setSpreadingFactor(fallbackMode.sf);
+                radio.setBandwidth(fallbackMode.bw);
+
+                radio.startReceive();
                 neopixelWrite(RGB_DATA_PIN, 50, 0, 50); // Steady purple signifies connection loss
                 delay(25);
                 neopixelWrite(RGB_DATA_PIN, 0, 0, 0);

@@ -163,8 +163,8 @@ const double dopplerOffsets[] = { 22012.1800, 22013.5751, 22014.9518, 22016.3100
 const int numSteps = 800;
 unsigned long passStartTime;
 
-uint8_t satSF = 12;
-float satBW = 250;
+uint8_t satSF = 7;
+float satBW = 500;
 
 void setup() {
     Serial.begin(921600);
@@ -212,7 +212,7 @@ void loop() {
 
     double currentOffset = dopplerOffsets[index];
     double compensatedFreq = 915.0 + (currentOffset / 1000000.0);
-    radio.setFrequency((float)compensatedFreq);
+    radio.setFrequency((float)compensatedFreq); // Can only increase in steps of 61 Hz!
     radio.standby();
 
     // 1. Compile system frame payload structures
