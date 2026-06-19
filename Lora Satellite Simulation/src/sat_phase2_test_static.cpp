@@ -12,6 +12,7 @@
 
 #define RGB_DATA_PIN 38
 #define RGB_PWR_PIN  39
+#define BOOT_PIN 0
 
 #define ID 1
 
@@ -168,11 +169,12 @@ float satBW = 500;
 
 void setup() {
     Serial.begin(921600);
+    pinMode(BOOT_PIN, INPUT_PULLUP);
     pinMode(RGB_DATA_PIN, OUTPUT);
     pinMode(RGB_PWR_PIN, OUTPUT);
     digitalWrite(RGB_PWR_PIN, HIGH);
     
-    delay(100);    
+    delay(100);
     SPI.begin(LORA_CLK, LORA_MISO, LORA_MOSI);
 
     radio.tcxoVoltage = 1.6;
@@ -196,7 +198,15 @@ void setup() {
             delay(200);
         }
     }
+
+    neopixelWrite(RGB_DATA_PIN, 30, 30, 0);
+
+    while (digitalRead(BOOT_PIN) == HIGH) {
+        delay(10);
+    }
     
+    neopixelWrite(RGB_DATA_PIN, 0, 0, 0);
+
     passStartTime = millis();
 }
 
