@@ -9,13 +9,13 @@ async def gnd_worker(queue):
         try:
             data_type = job["type"]
             if data_type == "PACKET":
-                await asyncio.to_thread(addEntry, job["ID"], job["type"], job["data1"], job["data2"], job["snr"])
+                await asyncio.to_thread(addEntry2, job["ID"], job["type"], job["data1"], job["data2"], job["status"])
             elif data_type == "DATA_ERR":
                 print("CORRUPT PACKET \n")
-                await asyncio.to_thread(addEntry, job["ID"], job["type"], job["data1"], job["data2"], job["snr"])
+                await asyncio.to_thread(addEntry, job["ID"], job["type"], job["data1"], job["data2"], job["status"])
             elif data_type == "LINK_ERR":
                 print("DROPPED PACKET \n")
-                await asyncio.to_thread(addEntry, job["ID"], job["type"], job["data1"], job["data2"], job["snr"])
+                await asyncio.to_thread(addEntry, job["ID"], job["type"], job["data1"], job["data2"], job["status"])
         except Exception as e:
             print(f"[-] Database write error: {e}")
         finally:
@@ -25,7 +25,7 @@ async def sat_worker(queue):
     while True:
         job = await queue.get()
         try:
-            await asyncio.to_thread(addToA, job["ID"], job["time"])
+            await asyncio.to_thread(addProcessing2, job["ID"], job["time"])
         except Exception as e:
             print(f"[-] Database write error: {e}")
         finally:

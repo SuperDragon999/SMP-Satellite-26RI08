@@ -214,6 +214,18 @@ def addEntry2(id, t, d1, d2, s):
     database.commit()
     database.close()
 
+def addProcessing2(id, t):
+    database = sqlite3.connect(db_path)
+    c = database.cursor()
+    c.execute('''
+        INSERT INTO processing (ID, time) VALUES (?, ?);
+    ''', (id, t))
+
+    print(f"Added into toa {id}, {t}")
+    database.commit()
+    database.close()
+
+
 def clearData2():
     '''
     Clear all data, depends on which mode you are using. SAT mode clears the ToA table, GND mode clears the Data table.
