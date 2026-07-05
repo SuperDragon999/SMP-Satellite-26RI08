@@ -4,9 +4,6 @@ backend/storage/data
 pyvenv.cfg
 .DS_Store
 __pycache__/
-secrets.ini
-
 .pio
 .vscode
-satellite
-config.txt
+config.json

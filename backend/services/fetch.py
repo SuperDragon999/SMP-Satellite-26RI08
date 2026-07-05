@@ -9,7 +9,7 @@ async def gnd_worker(queue):
         try:
             data_type = job["type"]
             if data_type == "PACKET":
-                await asyncio.to_thread(addEntry2, job["ID"], job["type"], job["data1"], job["data2"], job["status"])
+                await asyncio.to_thread(addEntry, job["ID"], job["type"], job["data1"], job["data2"], job["status"])
             elif data_type == "DATA_ERR":
                 print("CORRUPT PACKET \n")
                 await asyncio.to_thread(addEntry, job["ID"], job["type"], job["data1"], job["data2"], job["status"])
@@ -25,7 +25,7 @@ async def sat_worker(queue):
     while True:
         job = await queue.get()
         try:
-            await asyncio.to_thread(addProcessing2, job["ID"], job["time"])
+            await asyncio.to_thread(addProcessing, job["ID"], job["time"])
         except Exception as e:
             print(f"[-] Database write error: {e}")
         finally:
@@ -140,8 +140,8 @@ async def fetchSerial(config: SerialConfig):
                     
         except Exception as e:
             # This block only triggers if the wire is unplugged or the port crashes
-            print(f"[-] Link drop: {e}")
-            print("[*] Attempting physical link reconnection in 3 seconds...")
+            print(f"[-] Port error: {e}")
+            print("[*] Attempting physical port reconnection in 3 seconds...")
             await asyncio.sleep(3)
             
         finally:
