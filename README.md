@@ -7,7 +7,107 @@ How effectively can adaptive LoRa spreading factor and bandwidth selection impro
 <ul>
   <li>Before running, start a Python virtual environment and install all required Python libraries</li>
   <li>Create a folder in backend/storage named "data"</li>
-  <li>To load a new / existing database, simply type its name when running main.py</li>
+  <li>To load a new/existing database, simply type its name when running main.py</li>
   <li>A total of 2 ESP-32 S3 Devkit-C1 boards with the Core 1121-HF LoRa module are required, and this project is run in VS Code with the PlatformIO extension.</li>
-  <li>Important! When flashing code onto the ESP-32 board, ensure the target file is in the src folder of the LoRa Satellite Simulation folder. In addition, make sure no other .cpp files are in the src folder.</li>
+  <li>
+    For the ESP-32 'satellite', the pins are as follows:
+    <br><br>
+    <table>
+      <thead>
+        <tr>
+          <th>ESP32 Pin</th>
+          <th>Core 1121 HF Pin</th>
+        </tr>
+      </thead>
+    <tbody>
+      <tr>
+        <td>GPIO12</td>
+        <td>CLK</td>
+      </tr>
+      <tr>
+        <td>GPIO13</td>
+        <td>MISO</td>
+      </tr>
+      <tr>
+        <td>GPIO11</td>
+        <td>MOSI</td>
+      </tr>
+      <tr>
+        <td>GPIO10</td>
+        <td>CS</td>
+      </tr>
+      <tr>
+        <td>GPIO15</td>
+        <td>RST</td>
+      </tr>
+      <tr>
+        <td>GPIO9</td>
+        <td>BUSY</td>
+      </tr>
+      <tr>
+        <td>GPIO16</td>
+        <td>DIO9</td>
+      </tr>
+      <tr>
+        <td>3.3V</td>
+        <td>3.3V</td>
+      </tr>
+      <tr>
+        <td>GND</td>
+        <td>GND</td>
+      </tr>
+    </tbody>
+  </table>
+  </li>
+  <li>
+    For the ESP-32 'ground station', the pins are as follows:
+    <br><br>
+    <table>
+      <thead>
+        <tr>
+          <th>ESP32 Pin</th>
+          <th>Core 1121 HF Pin</th>
+        </tr>
+      </thead>
+    <tbody>
+      <tr>
+        <td>GPIO12</td>
+        <td>CLK</td>
+      </tr>
+      <tr>
+        <td>GPIO13</td>
+        <td>MISO</td>
+      </tr>
+      <tr>
+        <td>GPIO11</td>
+        <td>MOSI</td>
+      </tr>
+      <tr>
+        <td>GPIO10</td>
+        <td>CS</td>
+      </tr>
+      <tr>
+        <td>GPIO14</td>
+        <td>RST</td>
+      </tr>
+      <tr>
+        <td>GPIO9</td>
+        <td>BUSY</td>
+      </tr>
+      <tr>
+        <td>GPIO16</td>
+        <td>DIO9</td>
+      </tr>
+      <tr>
+        <td>3.3V</td>
+        <td>3.3V</td>
+      </tr>
+      <tr>
+        <td>GND</td>
+        <td>GND</td>
+      </tr>
+    </tbody>
+  </table>
+  </li>
+  <li><b>Important!</b> When flashing code onto the ESP-32 board, ensure the target file is in the src folder of the LoRa Satellite Simulation folder. In addition, make sure no other .cpp files are in the src folder.</li>
 </ul>
