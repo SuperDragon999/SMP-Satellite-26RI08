@@ -111,21 +111,21 @@ def metrics(packets):
 
     elif mode == 1:
         df = getData(["ID", "time"], 0) # no failed packets
-        avg_toa_df = getData(["time"], 0)["time"]
-        avg_toa = avg_toa_df.mean() if not avg_toa_df.empty else 0.0
-        total_toa_df = getData(["time"], 0)["time"]
-        toal_toa = total_toa_df.sum() / 1000000 
+        avg_processing_df = getData(["time"], 0)["time"]
+        avg_processing = avg_processing_df.mean() if not avg_processing_df.empty else 0.0
+        total_processing_df = getData(["time"], 0)["time"]
+        total_processing = total_processing_df.sum() / 1000000 
         with cols[1]:
             st.metric(
-                "Average ToA", 
-                f"{avg_toa:.1f} μs"
+                "Average Processing Time", 
+                f"{avg_processing:.1f} μs"
             )
         with cols[2]:
             st.metric(
-                "Total ToA",
-                f"{toal_toa} s"
+                "Total Processing Time",
+                f"{total_processing} s"
             )
-        st.subheader("ToA Graph")
+        st.subheader("Processing Time Graph")
         chart = alt.Chart(df).mark_line(color='#38bdf8').encode(
             x=alt.X(
                 'ID:Q', 

@@ -93,7 +93,7 @@ def addProcessing(id, t):
         INSERT INTO processing (ID, time) VALUES (?, ?);
     ''', (id, t))
 
-    print(f"Added into toa {id}, {t}")
+    print(f"Added into 'processing' {id}, {t}")
     database.commit()
     database.close()
 
@@ -148,7 +148,7 @@ def getData(columns, getFail):
 
 def clearData():
     '''
-    Clear all data, depends on which mode you are using. SAT mode clears the ToA table, GND mode clears the 'data' table.
+    Clear all data, depends on which mode you are using. SAT mode clears the 'processing' table, GND mode clears the 'data' table.
     Respective empty tables will be regenerated based on the phase of the experimentation.
     '''
 
@@ -199,7 +199,7 @@ def count(val, column):
     '''
     record_mode = get_mode()
     conn = sqlite3.connect(db_path)
-    query = f"SELECT COUNT(*) FROM data WHERE {column} = {val};" if record_mode == 0 else f"SELECT COUNT(*) FROM toa WHERE {column} = {val};"
+    query = f"SELECT COUNT(*) FROM data WHERE {column} = {val};" if record_mode == 0 else f"SELECT COUNT(*) FROM processing WHERE {column} = {val};"
     result = conn.execute(query)
     return result.fetchone()[0]
 

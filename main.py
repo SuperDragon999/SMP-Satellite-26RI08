@@ -7,13 +7,11 @@ with open("config.json", "w") as f:
 name = input("Enter name of db file: ")
 phase_type = input("Which phase of experimentation is this file for? ")
 serial_port = input("Enter the Serial Port for monitoring: ")
-baud_rate = input("Enter the baud rate of the ESP-32: ")
 
 config = {
         "db_name": name,
         "phase": phase_type,
-        "serial_port": serial_port,
-        "baud_rate": baud_rate
+        "serial_port": serial_port
 }
 
 with open("config.json", "w") as f:
@@ -35,5 +33,5 @@ subprocess.Popen(["streamlit","run","app/app.py"],
 env=env
 )
 
-config=SerialConfig(serial_port, baud_rate, asyncio.Queue())
+config=SerialConfig(serial_port, 921600, asyncio.Queue())
 asyncio.run(fetchSerial(config))

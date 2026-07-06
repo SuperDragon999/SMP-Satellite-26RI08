@@ -6,10 +6,11 @@ How effectively can adaptive LoRa spreading factor and bandwidth selection impro
 <h2>Notes: </h2>
 <ul>
   <li>Before running, start a Python virtual environment and install all required Python libraries</li>
-  <li>Create a folder in backend/storage named "data"</li>
   <li>To load a new/existing database, simply type its name when running main.py</li>
-  <li>A total of 2 ESP-32 S3 Devkit-C1 boards with the Core 1121-HF LoRa module are required, and this project is run in VS Code with the PlatformIO extension.</li>
+  <li>A total of 2 ESP-32 S3 Devkit-C1 boards with the Core 1121-HF LoRa module are required along with two computers with USB ports, and this project is run in VS Code with the PlatformIO extension.</li>
   <li><b>Important!</b> When flashing code onto the ESP-32 board, ensure the target file is in the src folder of the LoRa Satellite Simulation folder. In addition, make sure no other .cpp files are in the src folder.</li>
+  <li>When plugging in the "satellite", it will have a yellow light turned on, meaning that it is on standby. The light should turn off when the BOOT button is pressed, meaning the "satellite" is starting its pass.</li>
+  <li>In order to start the LEO pass, click "Start Recording" for the "satellite" <b>ONLY</b> first and then click the BOOT button on the "satellite" and the "Start Recording" button for the <b>"ground station"</b> simultaneously.</li>
 </ul>
 <h2>Hardware setup:</h2>
 <b>For the ESP-32 'satellite', the pins are as follows:</b>
