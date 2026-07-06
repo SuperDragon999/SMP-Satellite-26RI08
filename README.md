@@ -7,6 +7,7 @@ How effectively can adaptive LoRa spreading factor and bandwidth selection impro
 <ul>
   <li>Before running, start a Python virtual environment and install all required Python libraries</li>
   <li>To load a new/existing database, simply type its name when running main.py</li>
+  <li>Our own experimentation data is also available in the ??? folder for reference. Do note that Phase 1 SF 7 62.5 kHz has been deliberately left out as it cannot achieve a successful link at all.</li>
   <li>A total of 2 ESP-32 S3 Devkit-C1 boards with the Core 1121-HF LoRa module are required along with two computers with USB ports, and this project is run in VS Code with the PlatformIO extension.</li>
   <li><b>Important!</b> When flashing code onto the ESP-32 board, ensure the target file is in the src folder of the LoRa Satellite Simulation folder. In addition, make sure no other .cpp files are in the src folder.</li>
   <li>When plugging in the "satellite", it will have a yellow light turned on, meaning that it is on standby. The light should turn off when the BOOT button is pressed, meaning the "satellite" is starting its pass.</li>
