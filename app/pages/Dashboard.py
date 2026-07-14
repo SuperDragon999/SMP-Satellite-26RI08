@@ -51,7 +51,7 @@ with st.expander("Database selector", expanded=True):
             set_mode(mode)
             conn.close()
             
-            # Commit strict two-key structure back to disk
+            # Commit new config.json
             with open(config_path, "w") as f:
                 json.dump({"db_name": selected_db, "serial_port": current_port}, f, indent=4)
             st.rerun()

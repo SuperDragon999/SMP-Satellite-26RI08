@@ -29,8 +29,8 @@ struct SatellitePayload {
     uint32_t telemetry2;
 };
 
-uint8_t currentSF = 7; // CHANGE BEFORE EACH TEST
-float currentBW = 500; // CHANGE BEFORE EACH TEST
+uint8_t currentSF = 10;
+float currentBW = 500;
 
 volatile long long lastPacketTime = 0;
 volatile long long lastError = 0;
@@ -259,7 +259,7 @@ void setup() {
 
 // Analytical assessment function to return diagnostic failure flags
 int evaluatelinkConstraints(uint32_t secondIdx) {
-    if (secondIdx >= 800) return -1; // out of bounds
+    if (secondIdx >= 559) return -1; // out of bounds
 
     double currentRate = abs(dopplerRates[secondIdx]);
     double currentDistance = distances[secondIdx];
@@ -271,7 +271,7 @@ int evaluatelinkConstraints(uint32_t secondIdx) {
 
     double pathLossDelta = 20.0 * log10(currentDistance / baselineMaxDist);
     double noiseFloorDelta = 10.0 * log10(currentBW / baselineBW);
-    double processingGainDelta = -2.5 * (currentSF - baselineSF);
+    double processingGainDelta = -3 * (currentSF - baselineSF);
 
     double linkMarginEstimate = 0.0 - (pathLossDelta + noiseFloorDelta + processingGainDelta);
     if (linkMarginEstimate < 0.0) {

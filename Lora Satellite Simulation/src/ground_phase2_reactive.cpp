@@ -32,67 +32,17 @@ struct SatellitePayload {
 struct AckPayload {
     uint8_t packetType;
     uint8_t identifier;
-    uint32_t messageId;
     uint8_t targetSF;
-    uint8_t targetBWCode;
+    uint8_t targetBW;
 };
 
-uint8_t currentSF = 12; // CHANGE BEFORE EACH TEST
-float currentBW = 250; // CHANGE BEFORE EACH TEST
+// Initialized modem config to this
+uint8_t currentSF = 10;
+float currentBW = 250;
 
-
-struct LinkConfig {
-    uint8_t sf;
-    float bw;
-    uint8_t bwCode;
-};
-
-const LinkConfig operationalModes[] = {
-    {7,  500.0, 2}, // Tier 0 (Fastest)
-    {7,  250.0, 1}, // Tier 1
-    {7,  125.0, 0}, // Tier 2
-    {12, 250.0, 1}, // Tier 3 (Most Resilient)
-};
-const uint8_t totalModes = 4;
-
-// Track active mode indexes
-uint8_t activeModeIdx = 4;
-
-LinkConfig react(bool packetLanded, float sampledHardwareSnr) {
-    // Handle the timeout
-    if (!packetLanded) {
-        if (activeModeIdx < totalModes - 1) {
-            activeModeIdx++; // Blindly step down to a more resilient tier
-        }
-        return operationalModes[activeModeIdx];
-    }
-
-    uint8_t currentSF = operationalModes[activeModeIdx].sf;
-    
-    // Determine the hard decode floor for our current hardware state
-    double snrFloor = (currentSF == 7) ? -7.5 : -20.0;
-    double currentCushion = (double)sampledHardwareSnr - snrFloor;
-
-    // Trigger an emergency downshift if we are within 3 dB of dropping the connection
-    if (currentCushion < 3.0) {
-        if (activeModeIdx < totalModes - 1) {
-            activeModeIdx++; 
-        }
-    } 
-    // Upshift to a faster data rate if we have a 6 dB buffer of safety
-    else if (currentCushion > 6.0) {
-        if (activeModeIdx > 0) {
-            activeModeIdx--; 
-        }
-    }
-
-    return operationalModes[activeModeIdx];
-}
-
+volatile uint8_t goodPacketCount = 0;
 volatile long long lastPacketTime = 0;
-volatile long long lastError = 0;
 volatile long int count;
-volatile bool link_down = false;
 
 SatellitePayload rxData;
 AckPayload ackData;
@@ -280,22 +230,9 @@ void setup() {
         0x12,        // Sync Word
         17           // TX Power (dBm)
     );
-
-    if (state != RADIOLIB_ERR_NONE) {
-        while (true) {
-            Serial.println("Configuration failed!");
-            neopixelWrite(RGB_DATA_PIN, 100, 0, 0); // Red-blue flashes indicates initialization failure
-            delay(200);
-            neopixelWrite(RGB_DATA_PIN, 0, 0, 0);
-            delay(10);
-            neopixelWrite(RGB_DATA_PIN, 0, 100, 0);
-            delay(200);
-        }
-    }
-
-    // Set the TCXO voltage configuration required by Core1121's internal reference crystal
-    // The LR1121 uses DIO3 to supply the TCXO regulator. 1.6V is typical.
+    
     state = radio.setTCXO(1.6);
+
     if (state != RADIOLIB_ERR_NONE) {
         while (true) {
             Serial.println("Configuration Failed!");
@@ -314,61 +251,128 @@ void setup() {
     lastPacketTime = millis(); // Initialize time here to prevent startup errors
 }
 
+constexpr float TX_POWER_DBM = 22.0;
+constexpr float TX_GAIN_DBI  = 2.0;
+constexpr float RX_GAIN_DBI  = 3.0;
+constexpr float RX_NOISE_FIGURE_DB = 3.5;
+constexpr float CARRIER_FREQ_MHZ = 915.0; // We can assume satellite freq is centred at this because Doppler shift barely affects the FSPL
+
+float requiredSNR(uint8_t sf) {
+    switch (sf) {
+        case 7:  return -7.5;
+        case 8:  return -10.0;
+        case 9:  return -12.5;
+        case 10: return -15.0;
+        case 11: return -17.5;
+        case 12: return -20.0;
+        default: return -20.0;
+    }
+}
+
+struct LinkConfig {
+    uint8_t sf;
+    float bw;
+};
+const LinkConfig operationalModes[] = {
+    {7,  500.0}, // Tier 0 (Fastest)
+    {9,  250.0}, // Tier 1
+    {10, 250.0} // Tier 2 (Most Resilient)
+};
+const uint8_t totalModes = 3;
+uint8_t activeModeIdx = 2;
+
 // Analytical assessment function to return diagnostic failure flags
 int evaluatelinkConstraints(uint32_t secondIdx) {
-    if (secondIdx >= 800) return -1; // out of bounds
+    if (secondIdx >= 559) return -1; // out of bounds
 
     double currentRate = abs(dopplerRates[secondIdx]);
     double currentDistance = distances[secondIdx];
 
-    // 1. Doppler Tracking Loop Constraint Assessment
+    // Doppler Rate Assessment
     double bwHz = currentBW * 1000.0;
-    double dopplerLimit = 0.25 * (pow(bwHz, 2) / pow(2, 2 * currentSF));
+    double dopplerLimit = 0.25 * (pow(bwHz, 2) / (double)(1ULL << (2 * currentSF)));
     if (currentRate > dopplerLimit) {
         return 2; // Fail doppler rate assessment 
     }
 
-    // 2. Link Budget Sensitivity Assessment
-    double baselineMaxDist = 1304667.969;
-    double baselineBW = 125.0;           
-    double baselineSF = 7.0;             
+    // Link Budget Assessment
+    double expectedSNR = getSimulatedSNR(secondIdx, currentBW);
+    float reqSNR = requiredSNR(currentSF);
 
-    double pathLossDelta = 20.0 * log10(currentDistance / baselineMaxDist);
-    double noiseFloorDelta = 10.0 * log10(currentBW / baselineBW);
-    double processingGainDelta = 2.5 * (currentSF - baselineSF);
-
-    double linkMarginEstimate = processingGainDelta - pathLossDelta - noiseFloorDelta;
-    if (linkMarginEstimate < 0.0) {
-        return 1;
+    if (expectedSNR < reqSNR) {
+        return 1; // Fail link budget
     }
-
-    return 0;
 
     return 0; // everything passes
 }
 
-double getSimulatedSNR(uint32_t secondIdx, float rawHardwareSnr, float activeBW) {
-    if (secondIdx >= 800) return -25.0; 
+//Get simulated snr and rssi
+float calculateFSPL(double distanceMeters){
+    float distanceKm = distanceMeters / 1000.0;
 
-    double currentDistance = distances[secondIdx];
-    double baselineMaxDist = 1304667.969; 
-    double baselineBW = 125.0;           
-
-    double pathLossDelta = 20.0 * log10(currentDistance / baselineMaxDist);
-    double noiseFloorDelta = 10.0 * log10(activeBW / baselineBW);
-
-    return (double)rawHardwareSnr - pathLossDelta - noiseFloorDelta;
+    return 32.44 + 20.0 * log10(distanceKm) + 20.0 * log10(CARRIER_FREQ_MHZ);
 }
 
-double getSimulatedRSSI(uint32_t secondIdx, float rawHardwareRssi) {
-    if (secondIdx >= 800) return -140.0; 
+float getSimulatedRSSI(uint32_t secondIdx){
+    if (secondIdx >= 559)
+        return -150.0;
 
-    double currentDistance = distances[secondIdx];
-    double baselineMaxDist = 1304667.969; 
+    float fspl = calculateFSPL(distances[secondIdx]);
 
-    double pathLossDelta = 20.0 * log10(currentDistance / baselineMaxDist);
+    return TX_POWER_DBM + TX_GAIN_DBI + RX_GAIN_DBI - fspl;
+}
 
-    return (double)rawHardwareRssi - pathLossDelta;
+double getSimulatedSNR(uint32_t secondIdx, double bwkHz){
+    double rssi = getSimulatedRSSI(secondIdx);
+
+    double noiseFloor = -174.0 + 10.0 * log10(bwkHz * 1000.0) + RX_NOISE_FIGURE_DB;
+
+    return rssi - noiseFloor;
+}
+
+LinkConfig react(bool packet, float snr, float rssi) {
+    // Compute the available SNR margin
+    float margin = snr - requiredSNR(currentSF);
+
+    // DOWNGRADE if the current configuration is becoming unreliable
+    if (!packet){
+        goodPacketCount = 0;
+        activeModeIdx = 2; // doppler rate is not a problem for sf 10 / 250 khz, directly switch to it to solve link issues
+    } else if (margin < 2.0f || rssi < -127.0f) { // if for some reason there is continuous corruption, try to loop through all combos.
+        goodPacketCount = 0;
+        if (activeModeIdx < totalModes - 1) {
+            activeModeIdx++;
+        }
+    } else if (margin > 5.0f && rssi > -122.0f) {
+        // UPGRADE only if there is a sufficient spare margin
+        goodPacketCount++;
+        if (goodPacketCount >= 3){
+            if (activeModeIdx > 0) {
+                activeModeIdx--;
+                goodPacketCount = 0;
+            }
+        }
+    } else {
+        goodPacketCount = 0;
+    }
+
+    return operationalModes[activeModeIdx];
+}
+
+void sendAdaptivePacket(bool packet, float snr, float rssi){
+    LinkConfig recommendedMode = react(packet, snr, rssi);
+
+    // send the adaptive packet
+    ackData.packetType = 0x01;
+    ackData.identifier = ID;
+    ackData.targetSF = recommendedMode.sf;
+    ackData.targetBW = recommendedMode.bw;
+                
+    radio.transmit((uint8_t*)&ackData, sizeof(ackData));
+
+    // set new sf and bw
+    radio.setBandwidth(recommendedMode.bw);
+    radio.setSpreadingFactor(recommendedMode.sf);
 }
 
 void loop() {
@@ -379,43 +383,43 @@ void loop() {
 
         radio.startReceive();
         if (state == RADIOLIB_ERR_NONE && rxData.identifier == 1) {
-            //BUGS, DO NOT RUN
-            link_down = false;
-            float snr = radio.getSNR();
-            float rssi = radio.getRSSI();
-
             uint32_t t = rxData.messageID;
             int status = evaluatelinkConstraints(t);
-            double simSnr = getSimulatedSNR(t, snr, currentBW);
-            if (simSnr >  12) {
-                simSnr = 12.0; // Force to 12.0 as registers usually cannot read beyond this
+            if (status == 0){
+                // passes link constraints
+                float snr = getSimulatedSNR(t, currentBW);
+                float rssi = getSimulatedRSSI(t);
+                char json[128];
+                snprintf(json, sizeof(json),
+                "{\"type\":\"PACKET\",\"ID\":%d,\"data1\":%lu,\"data2\":%lu,\"status\":%i}",
+                rxData.messageID,
+                rxData.telemetry,
+                rxData.telemetry2,
+                status);
+                Serial.println(json);
+                sendAdaptivePacket(true, snr, rssi);
+            } else if (status == 1){
+                // force link err
+                neopixelWrite(RGB_DATA_PIN, 50, 0, 50); // Steady purple signifies connection loss
+                delay(25);
+                neopixelWrite(RGB_DATA_PIN, 0, 0, 0);
+                char json[128];
+                snprintf(json, sizeof(json),
+                "{\"type\":\"LINK_ERR\",\"ID\":%d,\"data1\":%lu,\"data2\":%lu,\"status\":%i}", -2, millis(), rxData.messageID, status);
+                Serial.println(json);
+                sendAdaptivePacket(false, -1, -1);
+            } else if (status == 2){
+                // force crc failure
+                lastPacketTime = millis();
+                neopixelWrite(RGB_DATA_PIN, 50, 0, 0); // Red flash for mock CRC failure
+                delay(25);
+                neopixelWrite(RGB_DATA_PIN, 0, 0, 0);
+                char json[128];
+                snprintf(json, sizeof(json),
+                "{\"type\":\"DATA_ERR\",\"ID\":%d,\"data1\":%lu,\"data2\":%lu,\"status\":%i}", -1, millis(), 0, status);
+                Serial.println(json);
+                sendAdaptivePacket(false, -1, -1);
             }
-            double simRssi = getSimulatedRSSI(t, rssi);
-
-            LinkConfig recommendedMode = react(true, simSnr);
-            
-            ackData.packetType = 0x01;
-            ackData.identifier = ID;
-            ackData.messageId = t;
-            ackData.targetSF = recommendedMode.sf;
-            ackData.targetBWCode = recommendedMode.bwCode;
-            
-            neopixelWrite(RGB_DATA_PIN, 0, 50, 0);
-            
-            radio.transmit((uint8_t*)&ackData, sizeof(ackData));
-            char json[128];
-            snprintf(json, sizeof(json),
-            "{\"type\":\"PACKET\",\"ID\":%d,\"data1\":%lu,\"data2\":%lu,\"status\":%i}",
-            rxData.messageID,
-            rxData.telemetry,
-            rxData.telemetry2,
-            status);
-            Serial.println(json);
-
-            lastPacketTime = millis();
-            neopixelWrite(RGB_DATA_PIN, 0, 50, 0); // Green flashes indicate a complete successful track
-            delay(25);
-            neopixelWrite(RGB_DATA_PIN, 0, 0, 0);
         } else {
             lastPacketTime = millis();
             neopixelWrite(RGB_DATA_PIN, 50, 0, 0); // Red flash for CRC failure
@@ -428,33 +432,21 @@ void loop() {
         }
     }
 
+    // for some reason, a packet was not received
     if (millis() - lastPacketTime > 1000) {
-        if (!link_down){
-            link_down = true;
-            lastError = millis();
-            neopixelWrite(RGB_DATA_PIN, 50, 0, 50); // Steady purple signifies connection loss
-            delay(25);
-            neopixelWrite(RGB_DATA_PIN, 0, 0, 0);
-            char json[128];
-            snprintf(json, sizeof(json),
-            "{\"type\":\"LINK_ERR\",\"ID\":%d,\"data1\":%lu,\"data2\":%lu,\"snr\":%.2f}", -2, millis(), 0, 0.00);
-            Serial.println(json);
-        } else {
-            if (millis() - lastError > 1000){
-                lastError = millis();
-                LinkConfig fallbackMode = react(false, -25.0);
-                radio.setSpreadingFactor(fallbackMode.sf);
-                radio.setBandwidth(fallbackMode.bw);
-
-                radio.startReceive();
-                neopixelWrite(RGB_DATA_PIN, 50, 0, 50); // Steady purple signifies connection loss
-                delay(25);
-                neopixelWrite(RGB_DATA_PIN, 0, 0, 0);
-                char json[128];
-                snprintf(json, sizeof(json),
-                "{\"type\":\"LINK_ERR\",\"ID\":%d,\"data1\":%lu,\"data2\":%lu,\"snr\":%.2f}", -2, millis(), 0, 0.00);
-                Serial.println(json);
-            }          
-        }   
+        neopixelWrite(RGB_DATA_PIN, 50, 0, 50); // Steady purple signifies connection loss
+        delay(25);
+        neopixelWrite(RGB_DATA_PIN, 0, 0, 0);
+        char json[128];
+        snprintf(json, sizeof(json),
+        "{\"type\":\"LINK_ERR\",\"ID\":%d,\"data1\":%lu,\"data2\":%lu,\"snr\":%.2f}", -2, millis(), 0, 0.00);
+        activeModeIdx = 2; 
+        goodPacketCount = 0;
+        currentSF = operationalModes[activeModeIdx].sf;
+        currentBW = operationalModes[activeModeIdx].bw;
+        
+        radio.setBandwidth(currentBW);
+        radio.setSpreadingFactor(currentSF);
+        radio.startReceive();
     }
 }
