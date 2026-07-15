@@ -265,16 +265,15 @@ void loop() {
     if (rxState == RADIOLIB_ERR_NONE) {
         while (millis() - rxWindowStart < rxTimeoutMs) {
             if (digitalRead(LORA_DIO9) == HIGH) { 
-                AckPayload rxAck;
                 int readState = radio.readData((uint8_t*)&rxData, sizeof(rxData));
 
                 if (readState == RADIOLIB_ERR_NONE) {
                     // Validate that the packet came from ground station
-                    if (rxAck.identifier == 0) {
+                    if (rxData.identifier == 0) {
                         ackReceived = true;
                         
                         // Execute reconfiguration
-                        bool changed = reconfigureLoRa(rxAck.targetSF, rxAck.targetBW);
+                        bool changed = reconfigureLoRa(rxData.targetSF, rxData.targetBW);
                         if (changed) {
                             neopixelWrite(RGB_DATA_PIN, 0, 50, 0); // Green flash: dynamic link optimization successful!
                             delay(50);
@@ -293,14 +292,14 @@ void loop() {
     radio.standby();
 
     // Fallback Recovery Loop
-    // If we missed multiple reconfigurations, the ground station has likely rolled back to SF10/BW250.
+    // If we missed multiple reconfigurations, the ground station has likely rolled back to SF10/BW125.
     static uint32_t missedAckCounter = 0;
     if (ackReceived) {
         missedAckCounter = 0;
     } else {
         missedAckCounter++;
-        if (missedAckCounter >= 10) { // Fallback if 10 consecutive packets are unacknowledged
-            reconfigureLoRa(10, 250);
+        if (missedAckCounter >= 5) { // Fallback if 10 consecutive packets are unacknowledged
+            reconfigureLoRa(10, 125);
             missedAckCounter = 0;
         }
     }
