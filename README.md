@@ -14,56 +14,7 @@ How effectively can adaptive LoRa spreading factor and bandwidth selection impro
   <li>In order to start the LEO pass, click "Start Recording" for the "satellite" <b>ONLY</b> first and then click the BOOT button on the "satellite" and the "Start Recording" button for the <b>"ground station"</b> simultaneously.</li>
 </ul>
 <h2>Hardware setup:</h2>
-<b>For the ESP-32 'satellite', the pins are as follows:</b>
-<br><br>
-<table>
-  <thead>
-    <tr>
-      <th>ESP32 Pin</th>
-      <th>Core 1121 HF Pin</th>
-    </tr>
-  </thead>
-<tbody>
-  <tr>
-    <td>GPIO12</td>
-    <td>CLK</td>
-  </tr>
-  <tr>
-    <td>GPIO13</td>
-    <td>MISO</td>
-  </tr>
-  <tr>
-    <td>GPIO11</td>
-    <td>MOSI</td>
-  </tr>
-  <tr>
-    <td>GPIO10</td>
-    <td>CS</td>
-  </tr>
-  <tr>
-    <td>GPIO15</td>
-    <td>RST</td>
-  </tr>
-  <tr>
-    <td>GPIO9</td>
-    <td>BUSY</td>
-  </tr>
-  <tr>
-    <td>GPIO16</td>
-    <td>DIO9</td>
-  </tr>
-  <tr>
-    <td>3.3V</td>
-    <td>3.3V</td>
-  </tr>
-  <tr>
-    <td>GND</td>
-    <td>GND</td>
-  </tr>
-</tbody>
-</table>
-
-<b>For the ESP-32 'ground station', the pins are as follows:</b>
+<b>For the ESP-32s, the pins are as follows:</b>
 <br>
 <table>
   <thead>
