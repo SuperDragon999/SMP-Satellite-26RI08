@@ -62,7 +62,7 @@ if selected_db != active_db:
         json.dump({"db_name": selected_db, "serial_port": current_port}, f, indent=4)
     st.rerun()
 
-st.info(f"Connected: **{selected_db}.db** | Phase: {phase} | Mode: {mode} | Port: {current_port}")
+st.info(f"Connected: **{selected_db}.db** | Phase: {phase} | Port: {current_port}")
 
 state = get_record()
 mode = get_mode()

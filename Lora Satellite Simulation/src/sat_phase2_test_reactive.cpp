@@ -27,7 +27,7 @@ struct AckPayload {
     uint8_t packetType;
     uint8_t identifier;
     uint8_t targetSF;
-    uint8_t targetBW;
+    uint16_t targetBW;
 };
 
 SatellitePayload txData;
@@ -182,7 +182,6 @@ void setup() {
     }
     
     neopixelWrite(RGB_DATA_PIN, 0, 0, 0);
-
     passStartTime = millis();
 }
 
@@ -300,6 +299,7 @@ void loop() {
         missedAckCounter++;
         if (missedAckCounter >= 5) { // Fallback if 10 consecutive packets are unacknowledged
             reconfigureLoRa(10, 125);
+            Serial.println("switch");
             missedAckCounter = 0;
         }
     }

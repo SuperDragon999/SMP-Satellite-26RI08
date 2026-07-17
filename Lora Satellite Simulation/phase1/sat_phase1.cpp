@@ -6,7 +6,7 @@
 #define LORA_MISO    13
 #define LORA_MOSI    11
 #define LORA_CS      10
-#define LORA_RST     15
+#define LORA_RST     14
 #define LORA_BUSY    9
 #define LORA_DIO9    16
 

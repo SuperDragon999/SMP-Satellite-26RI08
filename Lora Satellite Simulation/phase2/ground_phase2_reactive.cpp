@@ -33,7 +33,7 @@ struct AckPayload {
     uint8_t packetType;
     uint8_t identifier;
     uint8_t targetSF;
-    uint8_t targetBW;
+    uint16_t targetBW;
 };
 
 // Initialized modem config to this
