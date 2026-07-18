@@ -22,8 +22,8 @@ void setFlag() {
     packetReceived = true;
 }
 
-uint8_t currentSF = 10; // CHANGE BEFORE EACH TEST
-float currentBW = 125; // CHANGE BEFORE EACH TEST
+uint8_t currentSF = 12; // CHANGE BEFORE EACH TEST
+float currentBW = 250; // CHANGE BEFORE EACH TEST
 
 struct SatellitePayload {
     uint8_t identifier;
@@ -62,8 +62,6 @@ void setup() {
         }
     }
 
-    // Set the TCXO voltage configuration required by Core1121's internal reference crystal
-    // The LR1121 uses DIO3 to supply the TCXO regulator. 1.6V is typical.
     state = radio.setTCXO(1.6);
     if (state != RADIOLIB_ERR_NONE) {
         while (true) {
@@ -124,7 +122,7 @@ void loop() {
         }
     }
 
-    if (millis() - lastPacketTime > 2500) {
+    if (millis() - lastPacketTime > 4000) {
         if (!link_down){
             link_down = true;
             lastError = millis();
@@ -136,7 +134,7 @@ void loop() {
             "{\"type\":\"LINK_ERR\",\"ID\":%d,\"data1\":%lu,\"data2\":%lu,\"snr\":%.2f}", -2, millis(), 0, 0.00);
             Serial.println(json);
         } else {
-            if (millis() - lastError > 2500){
+            if (millis() - lastError > 4000){
                 lastError = millis();
                 neopixelWrite(RGB_DATA_PIN, 50, 0, 50); // Steady purple signifies absolute connection loss
                 delay(25);

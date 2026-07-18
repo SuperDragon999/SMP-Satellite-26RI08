@@ -29,23 +29,18 @@ struct SatellitePayload {
     uint32_t telemetry2;
 };
 
-struct AckPayload {
-    uint8_t packetType;
-    uint8_t identifier;
-    uint8_t targetSF;
-    uint16_t targetBW;
-};
-
 // Initialized modem config to this
 uint8_t currentSF = 10;
-float currentBW = 250;
+float currentBW = 125;
 
 volatile uint8_t goodPacketCount = 0;
 volatile long long lastPacketTime = 0;
-volatile long int count;
+volatile bool linkDown = false;
+volatile uint32_t lastError = 0;
+volatile uint32_t lostPackets = 0;
 
 SatellitePayload rxData;
-AckPayload ackData;
+SatellitePayload ackData;
 
 const double dopplerRates[] = {-2.2256, -2.2511, -2.3024, -2.3544, -2.4069, -2.4601, -2.5139, -2.5683,
   -2.6234, -2.6791, -2.7355, -2.7926, -2.8504, -2.9088, -2.9680, -3.0279,
@@ -228,7 +223,7 @@ void setup() {
         currentSF,   // Spreading Factor
         5,           // Coding Rate (4/5)
         0x12,        // Sync Word
-        17           // TX Power (dBm)
+        22           // TX Power (dBm)
     );
     
     state = radio.setTCXO(1.6);
@@ -247,7 +242,19 @@ void setup() {
     }
 
     radio.setPacketReceivedAction(setFlag);
-    radio.startReceive();
+    int rxState = radio.startReceive();
+    if (rxState != RADIOLIB_ERR_NONE) {
+        while (true) {
+            Serial.println("Receive Failed!");
+            neopixelWrite(RGB_DATA_PIN, 100, 0, 0); // Red-blue flashes on setup error, blocks initialization
+            Serial.print("Error: ");
+            Serial.println(rxState);
+            neopixelWrite(RGB_DATA_PIN, 0, 0, 0);
+            delay(10);
+            neopixelWrite(RGB_DATA_PIN, 0, 100, 0);
+            delay(200);
+        }
+    }
     lastPacketTime = millis(); // Initialize time here to prevent startup errors
 }
 
@@ -274,13 +281,14 @@ struct LinkConfig {
     float bw;
 };
 const LinkConfig operationalModes[] = {
-    {7,  500.0}, // Tier 0 (Fastest)
-    {9,  250.0}, // Tier 1
-    {10, 250.0}, // Tier 2
-    {10, 125.0} // Tier 3 (Most Resilient)
+    {7, 500.0}, // Tier 0 (Least Resilient)
+    {7, 250.0}, // Tier 1 (Least Resilient)
+    {9, 500.0}, // Tier 2
+    {10, 250.0}, // Tier 3
+    {10, 125.0} // Tier 4 (Most Resilient)
 };
-const uint8_t totalModes = 4;
-uint8_t activeModeIdx = 3;
+const uint8_t totalModes = 5;
+uint8_t activeModeIdx = 4;
 
 // Get simulated snr and rssi
 float calculateFSPL(double distanceMeters){
@@ -331,121 +339,169 @@ int evaluatelinkConstraints(uint32_t secondIdx) {
     return 0; // everything passes
 }
 
-LinkConfig react(bool packet, float snr, float rssi) {
+LinkConfig react(float snr) {
     // Compute the available SNR margin
     float margin = snr - requiredSNR(currentSF);
 
-    // DOWNGRADE if the current configuration is becoming unreliable
-    if (!packet){
-        goodPacketCount = 0;
-        activeModeIdx = 3; // doppler rate is not a problem for sf 10 / 250 khz, directly switch to it to solve link issues
-    } else if (margin < 2.0f || rssi < -127.0f) { // if for some reason there is continuous corruption, try to loop through all combos.
-        goodPacketCount = 0;
-        if (activeModeIdx < totalModes - 1) {
-            activeModeIdx++;
+    for (uint8_t i = 0; i < totalModes; i++) {
+        const LinkConfig& candidate = operationalModes[i];
+
+        // Estimate SNR after changing bandwidth
+        float deltaNoise = 10.0f * log10(candidate.bw / currentBW);
+
+        float predictedSNR = snr - deltaNoise;
+
+        float margin =
+            predictedSNR - requiredSNR(candidate.sf);
+
+        if (margin >= 2.0f) {
+            activeModeIdx = i;
+            return candidate;
         }
-    } else if (margin > 5.0f && rssi > -122.0f) {
-        // UPGRADE only if there is a sufficient spare margin
-        goodPacketCount++;
-        if (goodPacketCount >= 3){
-            if (activeModeIdx > 0) {
-                activeModeIdx--;
-                goodPacketCount = 0;
-            }
-        }
-    } else {
-        goodPacketCount = 0;
     }
 
+    // Nothing satisfies the safety margin
+    activeModeIdx = totalModes - 1;
     return operationalModes[activeModeIdx];
 }
 
-void sendAdaptivePacket(bool packet, float snr, float rssi){
-    LinkConfig recommendedMode = react(packet, snr, rssi);
+void sendAdaptivePacket(LinkConfig recommendedMode){
+    radio.standby();
 
-    // send the adaptive packet
-    ackData.packetType = 0x01;
-    ackData.identifier = ID;
-    ackData.targetSF = recommendedMode.sf;
-    ackData.targetBW = recommendedMode.bw;
-                
-    radio.transmit((uint8_t*)&ackData, sizeof(ackData));
-    packetReceived = false;
+    // Send ACK to satellite
+    radio.clearPacketReceivedAction();
+    int txState = radio.transmit((uint8_t*)&ackData, sizeof(ackData));
+    radio.setPacketReceivedAction(setFlag);
+    packetReceived = false; 
 
-    // set new sf and bw
-    radio.setBandwidth(recommendedMode.bw);
-    radio.setSpreadingFactor(recommendedMode.sf);
+    while (digitalRead(LORA_BUSY) == HIGH) {
+        yield();
+    }
 
-    radio.startReceive();
+    if (txState == RADIOLIB_ERR_NONE) {
+        radio.standby();
+        radio.setBandwidth(recommendedMode.bw);
+        radio.setSpreadingFactor(recommendedMode.sf);
+
+        currentSF = recommendedMode.sf;
+        currentBW = recommendedMode.bw;
+        Serial.print("SF:");
+        Serial.print(currentSF);
+        Serial.print(",");
+        Serial.println(currentBW);
+        packetReceived = false;
+
+        radio.startReceive();
+    }
+    else {
+        Serial.printf("ACK transmit failed (%d)\n", txState);
+    }
 }
 
 void loop() {
-    if (packetReceived) {
-        packetReceived = false;
+    packetReceived=false;
+    radio.startReceive();
+    uint32_t start=millis();
 
-        int state = radio.readData((uint8_t*)&rxData, sizeof(rxData));
-        lastPacketTime = millis();
-        radio.startReceive();
 
-        if (state == RADIOLIB_ERR_NONE && rxData.identifier == 1) {
-            uint32_t t = rxData.messageID;
-            int status = evaluatelinkConstraints(t);
-            if (status == 0){
-                // passes link constraints
-                float snr = getSimulatedSNR(t, currentBW);
-                float rssi = getSimulatedRSSI(t);
-                char json[128];
-                snprintf(json, sizeof(json),
-                "{\"type\":\"PACKET\",\"ID\":%d,\"data1\":%lu,\"data2\":%lu,\"status\":%i}",
-                rxData.messageID,
-                rxData.telemetry,
-                rxData.telemetry2,
-                status);
-                Serial.println(json);
-                sendAdaptivePacket(true, snr, rssi);
-            } else if (status == 1){
-                // mock link err
-                neopixelWrite(RGB_DATA_PIN, 50, 0, 50); // Purple flash for mock connection loss (1)
+    while(millis()-start < 700){
+        if (packetReceived) {
+            lostPackets = 0;
+            packetReceived = false;
+            int state = radio.readData((uint8_t*)&rxData, sizeof(rxData));
+            radio.startReceive();
+            lastPacketTime = millis();
+
+            Serial.println();
+            if (state == RADIOLIB_ERR_NONE && rxData.identifier == 1) {
+                linkDown = false;
+                uint32_t t = rxData.messageID;
+                int status = evaluatelinkConstraints(t);
+                if (status == 0){
+                    // passes link constraints
+                    float snr = getSimulatedSNR(t, currentBW);
+                    char json[128];
+                    snprintf(json, sizeof(json),
+                    "{\"type\":\"PACKET\",\"ID\":%d,\"data1\":%lu,\"data2\":%lu,\"status\":%i}",
+                    rxData.messageID,
+                    rxData.telemetry,
+                    rxData.telemetry2,
+                    status);
+                    Serial.println(json);
+
+                    LinkConfig recommendedMode = react(snr);
+                    ackData.messageID = rxData.messageID;
+                    ackData.identifier = ID;
+                    ackData.telemetry = recommendedMode.sf;
+                    ackData.telemetry2= recommendedMode.bw;
+                    sendAdaptivePacket(recommendedMode);
+                    
+                    // neopixelWrite(RGB_DATA_PIN, 0, 50, 0); // Green flashes indicate a complete successful track
+                    // delay(25);
+                    // neopixelWrite(RGB_DATA_PIN, 0, 0, 0);
+                } else if (status == 1){
+                    // mock link err
+                    neopixelWrite(RGB_DATA_PIN, 50, 0, 50); // Purple flash for mock connection loss (1)
+                    delay(25);
+                    neopixelWrite(RGB_DATA_PIN, 0, 0, 0);
+                    char json[128];
+                    snprintf(json, sizeof(json),
+                    "{\"type\":\"LINK_ERR\",\"ID\":%d,\"data1\":%lu,\"data2\":%lu,\"status\":%i}", -2, millis(), 0, status);
+                    Serial.println(json);
+                    lostPackets++;
+                    if (lostPackets > 2) {
+                        radio.setBandwidth(125);
+                        radio.setSpreadingFactor(10);
+                        goodPacketCount = 0;
+                    }
+                } else if (status == 2){
+                    // mock crc failure
+                    neopixelWrite(RGB_DATA_PIN, 50, 0, 0); // Red flash for mock CRC failure (2)
+                    delay(25);
+                    neopixelWrite(RGB_DATA_PIN, 0, 0, 0);
+                    char json[128];
+                    snprintf(json, sizeof(json),
+                    "{\"type\":\"DATA_ERR\",\"ID\":%d,\"data1\":%lu,\"data2\":%lu,\"status\":%i}", -1, millis(), 0, status);
+                    Serial.println(json);
+                    lostPackets++;
+                    if (lostPackets > 2) {
+                        radio.setBandwidth(125);
+                        radio.setSpreadingFactor(10);
+                        goodPacketCount = 0;
+                    }
+                }
+            } else {
+                neopixelWrite(RGB_DATA_PIN, 50, 0, 0); // Red flash for CRC failure (3)
                 delay(25);
                 neopixelWrite(RGB_DATA_PIN, 0, 0, 0);
                 char json[128];
                 snprintf(json, sizeof(json),
-                "{\"type\":\"LINK_ERR\",\"ID\":%d,\"data1\":%lu,\"data2\":%lu,\"status\":%i}", -2, millis(), 0, status);
+                "{\"type\":\"DATA_ERR\",\"ID\":%d,\"data1\":%lu,\"data2\":%lu,\"status\":%i}", -1, millis(), 0, 3);
                 Serial.println(json);
-                sendAdaptivePacket(false, -1, -1);
-            } else if (status == 2){
-                // mock crc failure
-                neopixelWrite(RGB_DATA_PIN, 50, 0, 0); // Red flash for mock CRC failure (2)
-                delay(25);
-                neopixelWrite(RGB_DATA_PIN, 0, 0, 0);
-                char json[128];
-                snprintf(json, sizeof(json),
-                "{\"type\":\"DATA_ERR\",\"ID\":%d,\"data1\":%lu,\"data2\":%lu,\"status\":%i}", -1, millis(), 0, status);
-                Serial.println(json);
-                sendAdaptivePacket(false, -1, -1);
+                lostPackets++;
+                if (lostPackets > 2) {
+                    radio.setBandwidth(125);
+                    radio.setSpreadingFactor(10);
+                    goodPacketCount = 0;
+                }
             }
-        } else {
-            neopixelWrite(RGB_DATA_PIN, 50, 0, 0); // Red flash for CRC failure (3)
-            delay(25);
-            neopixelWrite(RGB_DATA_PIN, 0, 0, 0);
-            char json[128];
-            snprintf(json, sizeof(json),
-            "{\"type\":\"DATA_ERR\",\"ID\":%d,\"data1\":%lu,\"data2\":%lu,\"status\":%i}", -1, millis(), 0, 3);
-            Serial.println(json);
-            sendAdaptivePacket(false, -1, -1);
+            radio.startReceive();
         }
     }
 
-    // for some reason, a packet was not received
-    if (millis() - lastPacketTime >= 1000) {
-        lastPacketTime += 1000;
-        neopixelWrite(RGB_DATA_PIN, 50, 0, 50); // Purple flash for connection loss (4)
-        delay(25);
-        neopixelWrite(RGB_DATA_PIN, 0, 0, 0);
+    if (millis() - lastPacketTime > 1000) {
+        lastPacketTime = millis() + 1000;
         char json[128];
         snprintf(json, sizeof(json),
         "{\"type\":\"LINK_ERR\",\"ID\":%d,\"data1\":%lu,\"data2\":%lu,\"status\":%i}", -2, millis(), 0, 4);
         Serial.println(json);
-        sendAdaptivePacket(false, -1, -1);
+        lostPackets++;
+        if (lostPackets > 2) {
+            radio.setBandwidth(125);
+            radio.setSpreadingFactor(10);
+            goodPacketCount = 0;
+        }
+    } else {
+        delay(10);
     }
 }

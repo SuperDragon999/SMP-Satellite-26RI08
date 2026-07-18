@@ -23,15 +23,8 @@ struct SatellitePayload {
     uint32_t telemetry2;
 };
 
-struct AckPayload {
-    uint8_t packetType;
-    uint8_t identifier;
-    uint8_t targetSF;
-    uint16_t targetBW;
-};
-
 SatellitePayload txData;
-AckPayload rxData;
+SatellitePayload rxData;
 
 LR1121 radio = new Module(LORA_CS, LORA_DIO9, LORA_RST, LORA_BUSY);
 
@@ -136,12 +129,15 @@ const double dopplerOffsets[] = { 22000.9729, 21998.7473, 21996.4707, 21994.1424
   -21964.9441, -21967.8823, -21970.7618, -21973.5830, -21976.3469,
   -21979.0541, -21981.7051, -21984.3008, -21986.8417, -21989.3286,
   -21991.7619, -21994.1424, -21996.4707, -21998.7473 };
-
-const int numSteps = 800;
 unsigned long passStartTime;
 
 uint8_t satSF = 10;
-float satBW = 250;
+float satBW = 125;
+volatile bool packetReceived = false;
+
+void setFlag() {
+    packetReceived = true;
+}
 
 void setup() {
     Serial.begin(921600);
@@ -151,9 +147,8 @@ void setup() {
     digitalWrite(RGB_PWR_PIN, HIGH);
     
     delay(100);
-    SPI.begin(LORA_CLK, LORA_MISO, LORA_MOSI);
+    SPI.begin(LORA_CLK, LORA_MISO, LORA_MOSI, LORA_CS);
 
-    radio.tcxoVoltage = 1.6;
     // Initialization signature for RadioLib LR1121 standard syntax
     int state = radio.begin(
         915.0,       // Center Frequency (MHz)
@@ -161,9 +156,10 @@ void setup() {
         satSF,       // Spreading Factor
         5,           // Coding Rate (4/5)
         0x12,        // Sync Word
-        22,          // Output Power (dBm)
-        8            // Preamble length
+        22           // Output Power (dBm)
     );
+    state = radio.setTCXO(1.6);
+    radio.setPacketReceivedAction(setFlag);
     
     if (state != RADIOLIB_ERR_NONE) {
         while (true) {
@@ -185,13 +181,14 @@ void setup() {
     passStartTime = millis();
 }
 
-bool reconfigureLoRa(uint8_t newSF, uint8_t newBW) {
+bool reconfigureLoRa(uint8_t newSF, uint16_t newBW) {
     // Avoid redundant re-flashes
     if (newSF == satSF && newBW == satBW) {
         return false; 
     }
-
+    
     // Apply new SF
+    unsigned long adaptStartTime = micros();
     int state = radio.setSpreadingFactor(newSF);
     if (state != RADIOLIB_ERR_NONE) {
         return false;
@@ -205,6 +202,10 @@ bool reconfigureLoRa(uint8_t newSF, uint8_t newBW) {
         return false;
     }
 
+    unsigned long adaptEndTime = micros();
+    unsigned long adaptDuration = adaptEndTime - adaptStartTime;
+    Serial.println("Reconfigured LoRa to SF" + String(newSF) + " BW" + String(newBW) + " in " + String(adaptDuration) + " microseconds");
+
     satSF = newSF;
     satBW = newBW;
     return true;
@@ -216,33 +217,35 @@ void loop() {
     unsigned long elapsed = (millis() - passStartTime) / 1000;
     
     int index = elapsed;
-    if (index >= 560) index = 559; // Absolute safety boundary guard
+    if (index >= 560) index = 559; // Boundary check
     
     radio.standby(); // clears any stuck rx registers
 
     double currentOffset = dopplerOffsets[index];
     double compensatedFreq = 915.0 + (currentOffset / 1000000.0);
-    radio.setFrequency((float)compensatedFreq); // Can only increase in steps of 61 Hz
+    //radio.setFrequency((float)compensatedFreq); // Can only increase in steps of 61 Hz
     radio.standby();
 
-    // 1. Compile system frame payload structures
+    // Compile system frame payload structures
     txData.identifier = ID;
     txData.messageID = index;
     txData.telemetry = (uint32_t)getReading();
     txData.telemetry2 = (uint32_t)getReading2();
     
-    // 2. Dispatch telemetry
+    // Dispatch telemetry
     unsigned long txStartTime = micros();
     int txState = radio.transmit((uint8_t*)&txData, sizeof(txData));
-
+    while(digitalRead(LORA_BUSY) == HIGH) {
+        yield();
+    }
     unsigned long txEndTime = micros();
 
     unsigned long toa = txEndTime - txStartTime;
 
     if (txState == RADIOLIB_ERR_NONE) {
-        neopixelWrite(RGB_DATA_PIN, 0, 0, 20); // Blue indicates down-link transmission confirmed
-        delay(20);
-        neopixelWrite(RGB_DATA_PIN, 0, 0, 0);
+        // neopixelWrite(RGB_DATA_PIN, 0, 0, 20); // Blue indicates down-link transmission confirmed
+        // delay(20);
+        // neopixelWrite(RGB_DATA_PIN, 0, 0, 0);
         char json[128];
         snprintf(json, sizeof(json),
         "{\"ID\":%ld,\"time\":%lu}", index, toa);
@@ -256,36 +259,48 @@ void loop() {
     }
     
     unsigned long rxWindowStart = millis();
-    unsigned long rxTimeoutMs = 300; // 300ms window to wait for adaptive packet
     bool ackReceived = false;
 
-    // Begin listening to adaptive reconfigurations
-    int rxState = radio.startReceive();
-    if (rxState == RADIOLIB_ERR_NONE) {
-        while (millis() - rxWindowStart < rxTimeoutMs) {
-            if (digitalRead(LORA_DIO9) == HIGH) { 
-                int readState = radio.readData((uint8_t*)&rxData, sizeof(rxData));
+    packetReceived = false;
+    radio.startReceive();
 
-                if (readState == RADIOLIB_ERR_NONE) {
-                    // Validate that the packet came from ground station
-                    if (rxData.identifier == 0) {
-                        ackReceived = true;
-                        
-                        // Execute reconfiguration
-                        bool changed = reconfigureLoRa(rxData.targetSF, rxData.targetBW);
-                        if (changed) {
-                            neopixelWrite(RGB_DATA_PIN, 0, 50, 0); // Green flash: dynamic link optimization successful!
-                            delay(50);
-                            neopixelWrite(RGB_DATA_PIN, 0, 0, 0);
-                        }
-                        break; // Exit the listening window loop early
-                    }
-                }
-                // If read failed or packet was corrupted, resume listening
-                radio.startReceive();
-            }
-            yield();
+    while (millis() - rxWindowStart < 1000) {
+        if (!packetReceived) {
+            delay(1);
+            continue;
         }
+
+        packetReceived = false;
+        int readState = radio.readData((uint8_t*)&rxData, sizeof(rxData));
+        if (readState != RADIOLIB_ERR_NONE) {
+            radio.startReceive();
+            continue;
+        }
+        // Ignore packets not from the ground station
+        if (rxData.identifier != 0) {
+            radio.startReceive();
+            neopixelWrite(RGB_DATA_PIN, 50, 0, 0);
+            delay(50);
+            neopixelWrite(RGB_DATA_PIN, 0, 0, 0);
+            continue;
+        }
+
+        ackReceived = true;
+        bool changed = reconfigureLoRa(rxData.telemetry, rxData.telemetry2);
+
+        if (changed) {
+            Serial.println("Reconfigured LoRa to SF" + String(rxData.telemetry) + " BW" + String(rxData.telemetry2));
+            // neopixelWrite(RGB_DATA_PIN, 50, 0, 50);
+            // delay(50);
+            // neopixelWrite(RGB_DATA_PIN, 0, 0, 0);
+        } else {
+            Serial.println("No reconfiguration needed, already at SF" + String(satSF) + " BW" + String(satBW));
+            // neopixelWrite(RGB_DATA_PIN, 0, 50, 0);
+            // delay(50);
+            // neopixelWrite(RGB_DATA_PIN, 0, 0, 0);
+        }
+
+        break;
     }
 
     radio.standby();
@@ -297,10 +312,11 @@ void loop() {
         missedAckCounter = 0;
     } else {
         missedAckCounter++;
-        if (missedAckCounter >= 5) { // Fallback if 10 consecutive packets are unacknowledged
-            reconfigureLoRa(10, 125);
-            Serial.println("switch");
+        if (missedAckCounter >= 2) {
             missedAckCounter = 0;
+            Serial.println("LoRa at SF" + String(satSF) + " BW" + String(satBW));
+            Serial.println("Missed multiple acks, reverting to SF10/BW125");
+            reconfigureLoRa(10, 125);
         }
     }
     long long end = millis();

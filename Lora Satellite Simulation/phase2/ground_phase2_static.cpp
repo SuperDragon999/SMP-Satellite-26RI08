@@ -30,7 +30,7 @@ struct SatellitePayload {
 };
 
 uint8_t currentSF = 10;
-float currentBW = 500;
+float currentBW = 125;
 
 volatile long long lastPacketTime = 0;
 volatile long long lastError = 0;
@@ -257,36 +257,72 @@ void setup() {
     lastPacketTime = millis(); // Initialize time here to prevent startup errors
 }
 
-// Analytical assessment function to return diagnostic failure flags
+constexpr float TX_POWER_DBM = 22.0;
+constexpr float TX_GAIN_DBI  = 2.0;
+constexpr float RX_GAIN_DBI  = 2.0;
+constexpr float RX_NOISE_FIGURE_DB = 3.5;
+constexpr float CARRIER_FREQ_MHZ = 915.0; // We can assume satellite freq is centred at this because Doppler shift barely affects the FSPL
+
+float requiredSNR(uint8_t sf) {
+    switch (sf) {
+        case 7:  return -7.5;
+        case 8:  return -10.0;
+        case 9:  return -12.5;
+        case 10: return -15.0;
+        case 11: return -17.5;
+        case 12: return -20.0;
+        default: return -20.0;
+    }
+}
+
+float calculateFSPL(double distanceMeters){
+    float distanceKm = distanceMeters / 1000.0;
+
+    return 32.44 + 20.0 * log10(distanceKm) + 20.0 * log10(CARRIER_FREQ_MHZ);
+}
+
+float getSimulatedRSSI(uint32_t secondIdx){
+    if (secondIdx >= 559)
+        return -150.0;
+
+    float fspl = calculateFSPL(distances[secondIdx]);
+
+    return TX_POWER_DBM + TX_GAIN_DBI + RX_GAIN_DBI - fspl;
+}
+
+double getSimulatedSNR(uint32_t secondIdx, double bwkHz){
+    double rssi = getSimulatedRSSI(secondIdx);
+
+    double noiseFloor = -174.0 + 10.0 * log10(bwkHz * 1000.0) + RX_NOISE_FIGURE_DB;
+
+    return rssi - noiseFloor;
+}
+
+// Link assessment function
 int evaluatelinkConstraints(uint32_t secondIdx) {
     if (secondIdx >= 559) return -1; // out of bounds
 
     double currentRate = abs(dopplerRates[secondIdx]);
     double currentDistance = distances[secondIdx];
 
-    // 1. Link Budget Sensitivity Assessment
-    double baselineMaxDist = 1304667.969;
-    double baselineBW = 125.0;           
-    double baselineSF = 7.0;             
-
-    double pathLossDelta = 20.0 * log10(currentDistance / baselineMaxDist);
-    double noiseFloorDelta = 10.0 * log10(currentBW / baselineBW);
-    double processingGainDelta = -3 * (currentSF - baselineSF);
-
-    double linkMarginEstimate = 0.0 - (pathLossDelta + noiseFloorDelta + processingGainDelta);
-    if (linkMarginEstimate < 0.0) {
-        return 1; // Fail distance assessment
-    }
-
-    // 2. Doppler Tracking Loop Constraint Assessment
+    // Doppler Rate Assessment
     double bwHz = currentBW * 1000.0;
-    double dopplerLimit = 0.25 * (pow(bwHz, 2) / pow(2, 2 * currentSF));
+    double dopplerLimit = 0.25 * (pow(bwHz, 2) / (double)(1ULL << (2 * currentSF)));
     if (currentRate > dopplerLimit) {
         return 2; // Fail doppler rate assessment 
     }
 
+    // Link Budget Assessment
+    double expectedSNR = getSimulatedSNR(secondIdx, currentBW);
+    float reqSNR = requiredSNR(currentSF);
+
+    if (expectedSNR < reqSNR) {
+        return 1; // Fail link budget
+    }
+
     return 0; // everything passes
 }
+
 
 //statuses: 0 pass, 1 theoretical link fail, 2 theoretical doppler fail, 3 actual crc error, 4 actual link error
 void loop() {
