@@ -282,9 +282,9 @@ struct LinkConfig {
 };
 const LinkConfig operationalModes[] = {
     {7, 500.0}, // Tier 0 (Least Resilient)
-    {7, 250.0}, // Tier 1 (Least Resilient)
-    {9, 500.0}, // Tier 2
-    {10, 250.0}, // Tier 3
+    {9, 500.0}, // Tier 1
+    {8, 250.0}, // Tier 2
+    {9, 250.0}, // Tier 3
     {10, 125.0} // Tier 4 (Most Resilient)
 };
 const uint8_t totalModes = 5;
@@ -342,8 +342,9 @@ int evaluatelinkConstraints(uint32_t secondIdx) {
 LinkConfig react(float snr) {
     // Compute the available SNR margin
     float margin = snr - requiredSNR(currentSF);
+    int max_margin = INT_MIN;
 
-    for (uint8_t i = 0; i < totalModes; i++) {
+    for (uint8_t i = totalModes - 1; i >= 0; i--) {
         const LinkConfig& candidate = operationalModes[i];
 
         // Estimate SNR after changing bandwidth
@@ -354,15 +355,22 @@ LinkConfig react(float snr) {
         float margin =
             predictedSNR - requiredSNR(candidate.sf);
 
-        if (margin >= 2.0f) {
+        if (margin >= 2.75f) {
             activeModeIdx = i;
             return candidate;
+        } else if (margin >= max_margin) {
+            max_margin = margin;
         }
     }
 
-    // Nothing satisfies the safety margin
-    activeModeIdx = totalModes - 1;
-    return operationalModes[activeModeIdx];
+    if (max_margin <= 1.0f){
+        // Link is unstable
+        activeModeIdx = totalModes - 1;
+        return operationalModes[activeModeIdx];
+    } else {
+        //Keep link first
+        return operationalModes[activeModeIdx];
+    }
 }
 
 void sendAdaptivePacket(LinkConfig recommendedMode){
