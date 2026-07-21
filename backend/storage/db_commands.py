@@ -169,7 +169,7 @@ def getData(columns, getFail):
             query = f"SELECT {column_string} FROM processing WHERE ID != -1;"
     else:
         if record_mode == 0:
-            query = f"SELECT {column_string} FROM processing;"
+            query = f"SELECT {column_string} FROM data;"
         elif record_mode == 1:
             query = f"SELECT {column_string} FROM processing;"
     data = pd.read_sql(query, conn)

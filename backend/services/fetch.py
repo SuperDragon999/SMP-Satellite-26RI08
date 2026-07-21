@@ -16,6 +16,9 @@ async def gnd_worker(queue):
             elif data_type == "LINK_ERR":
                 print("DROPPED PACKET \n")
                 await asyncio.to_thread(addEntry, job["ID"], job["type"], job["data1"], job["data2"], job["status"])
+            elif data_type == "ALGORITHM_OUTPUT":
+                with open("backend/storage/algorithm_output.txt", "a") as f:
+                    f.write(json.dumps(job))
         except Exception as e:
             print(f"[-] Database write error: {e}")
         finally:
