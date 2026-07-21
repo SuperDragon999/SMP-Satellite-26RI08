@@ -279,8 +279,8 @@ struct LinkConfig {
     float bw;
 };
 const LinkConfig operationalModes[] = {
-    {7, 500.0}, // Tier 0 (Least Resilient)
-    {9, 250.0}, // Tier 1
+    {8, 500.0}, // Tier 0 (Least Resilient)
+    {9, 500.0}, // Tier 1
     {10, 250.0}, // Tier 2
     {10, 125.0} // Tier 3 (Most Resilient)
 };
