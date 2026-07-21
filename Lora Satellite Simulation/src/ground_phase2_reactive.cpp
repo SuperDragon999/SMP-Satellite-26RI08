@@ -342,9 +342,9 @@ int evaluatelinkConstraints(uint32_t secondIdx) {
 LinkConfig react(float snr) {
     // Compute the available SNR margin
     float margin = snr - requiredSNR(currentSF);
-    int max_margin = INT_MIN;
+    float max_margin = -INFINITY;
 
-    for (uint8_t i = totalModes - 1; i >= 0; i--) {
+    for (uint8_t i = 0; i < totalModes - 1; i++) {
         const LinkConfig& candidate = operationalModes[i];
 
         // Estimate SNR after changing bandwidth
@@ -355,7 +355,7 @@ LinkConfig react(float snr) {
         float margin =
             predictedSNR - requiredSNR(candidate.sf);
 
-        if (margin >= 2.75f) {
+        if (margin >= 2.00f) {
             activeModeIdx = i;
             return candidate;
         } else if (margin >= max_margin) {

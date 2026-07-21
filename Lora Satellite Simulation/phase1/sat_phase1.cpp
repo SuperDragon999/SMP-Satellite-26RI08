@@ -50,7 +50,7 @@ void setup() {
         8            // Preamble length
     );
 
-    radio.setFrequency((double)(915 + 0.0220009729));
+    radio.setFrequency((double)(915 + 0.022001));
     
     if (state != RADIOLIB_ERR_NONE) {
         while (true) {
