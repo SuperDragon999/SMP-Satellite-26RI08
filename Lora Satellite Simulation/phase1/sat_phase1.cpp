@@ -106,7 +106,7 @@ void loop() {
     }
     
     long long end = millis();
-    if (end - loopStart <= 4000){
-        delay(4000 - (end - loopStart)); //4 second gap
+    if (end - loopStart <= 2500){
+        delay(2500 - (end - loopStart)); //2.5 second gap
     }
 }

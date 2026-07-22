@@ -28,8 +28,12 @@ elif state == 1:
 display()
 
 mode = get_mode()
+_, phase = get_runtime_db_context()
 if mode == 0:
-    df_manage = getData(["ID", "type", "data1", "data2", "status"], 1) # Phase 2
+    if phase == 2:
+        df_manage = getData(["ID", "type", "data1", "data2", "status"], 1) # Phase 2
+    elif phase == 1:
+        df_manage = getData(["ID", "type", "data1", "data2", "snr"], 1) # Phase 1
 elif mode == 1:
     df_manage = getData(["ID", "time"], 1)
 
@@ -55,7 +59,10 @@ if not df_manage.empty:
                 with r2_col2:
                     input_d2 = st.number_input("Enter Data 2:", step=1, value=None, placeholder="Type data2...")
                 with r2_col3:
-                    input_status = st.number_input("Enter exact status", step=1, value=None, placeholder="Type status...") # Phase 2
+                    if phase == 1:
+                        input_status = st.number_input("Enter exact SNR", step=0.1, value=None, placeholder="Type snr...")
+                    elif phase == 2:
+                        input_status = st.number_input("Enter exact status", step = 1, value=None, placeholder="Type status...")
                 
                 # Explicit confirmation checkbox
                 safety_lock = st.checkbox("I confirm I want to wipe this specific tracking data row from history.")
@@ -77,8 +84,8 @@ if not df_manage.empty:
                         (df_manage["ID"] == input_id) & 
                         (df_manage["type"] == input_type) & 
                         (df_manage["data1"] == input_d1) & 
-                        (df_manage["data2"] == input_d2) & 
-                        (df_manage["status"] == input_status) # type: ignore
+                        (df_manage["data2"] == input_d2) &
+                        (df_manage["status"] == input_status) if phase == 2 else (df_manage["snr"] == input_status) # type: ignore
                     ]
                     
                     if not match.empty:
@@ -88,9 +95,9 @@ if not df_manage.empty:
                             input_type, 
                             int(input_d1), # type: ignore
                             int(input_d2), # type: ignore
-                            float(input_status) # type: ignore
+                            float(input_status) if phase == 1 else int(input_status) # type: ignore
                         )
-
+                        st.success(f"Success!")
                         st.rerun()
                     else:
                         st.error("Deletion Failed: No record in the database matches that exact combination of parameters. Verify your inputs.")

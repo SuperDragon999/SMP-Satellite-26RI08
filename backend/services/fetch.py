@@ -7,15 +7,25 @@ async def gnd_worker(queue):
     while True:
         job = await queue.get()
         try:
+            _, phase = get_runtime_db_context()
             data_type = job["type"]
             if data_type == "PACKET":
-                await asyncio.to_thread(addEntry, job["ID"], job["type"], job["data1"], job["data2"], job["status"])
+                if phase == 1:
+                    await asyncio.to_thread(addEntry, job["ID"], job["type"], job["data1"], job["data2"], job["snr"])
+                elif phase == 2:
+                    await asyncio.to_thread(addEntry, job["ID"], job["type"], job["data1"], job["data2"], job["status"])
             elif data_type == "DATA_ERR":
                 print("CORRUPT PACKET \n")
-                await asyncio.to_thread(addEntry, job["ID"], job["type"], job["data1"], job["data2"], job["status"])
+                if phase == 1:
+                    await asyncio.to_thread(addEntry, job["ID"], job["type"], job["data1"], job["data2"], job["snr"])
+                elif phase == 2:
+                    await asyncio.to_thread(addEntry, job["ID"], job["type"], job["data1"], job["data2"], job["status"])
             elif data_type == "LINK_ERR":
                 print("DROPPED PACKET \n")
-                await asyncio.to_thread(addEntry, job["ID"], job["type"], job["data1"], job["data2"], job["status"])
+                if phase == 1:
+                    await asyncio.to_thread(addEntry, job["ID"], job["type"], job["data1"], job["data2"], job["snr"])
+                elif phase == 2:
+                    await asyncio.to_thread(addEntry, job["ID"], job["type"], job["data1"], job["data2"], job["status"])
             elif data_type == "ALGORITHM_OUTPUT":
                 with open("backend/storage/algorithm_output.txt", "a") as f:
                     f.write(json.dumps(job))
