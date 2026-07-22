@@ -29,8 +29,8 @@ struct SatellitePayload {
     uint32_t telemetry2;
 };
 
-uint8_t currentSF = 10;
-float currentBW = 125;
+uint8_t currentSF = 7; // CHANGE BEFORE EACH EXPERIMENT
+float currentBW = 500; // CHANGE BEFORE EACH EXPERIMENT
 
 volatile long long lastPacketTime = 0;
 volatile long int count;

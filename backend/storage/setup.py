@@ -40,9 +40,13 @@ def setup(db, mode, type):
 			phase INTEGER
 	);
 	''')
-	c.execute('''
-	INSERT INTO ctrl VALUES (?, ?, ?);
-	''', (0, mode, type))
+
+	c.execute("SELECT phase, mode FROM ctrl ORDER BY rowid DESC LIMIT 1;")
+	result = c.fetchone()
+	if result is None:
+		c.execute('''
+		INSERT INTO ctrl VALUES (?, ?, ?);
+		''', (0, mode, type))
 
 	db.commit()
 	db.close()
