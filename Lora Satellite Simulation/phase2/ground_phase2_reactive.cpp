@@ -279,10 +279,13 @@ struct LinkConfig {
     float bw;
 };
 const LinkConfig operationalModes[] = {
-    {8, 500.0}, // Tier 0 (Least Resilient)
-    {9, 500.0}, // Tier 1
-    {10, 250.0}, // Tier 2
-    {10, 125.0} // Tier 3 (Most Resilient)
+    {7, 500.0},
+    {7, 250.0},
+    {7, 125.0},
+    {8, 500.0},
+    {9, 500.0},
+    {10, 250.0},
+    {10, 125.0}
 };
 const uint8_t totalModes = 4;
 uint8_t activeModeIdx = 3;
@@ -447,6 +450,12 @@ void loop() {
                     radio.setBandwidth(125);
                     radio.setSpreadingFactor(10);
                 }
+            } else if (status == -1){
+                char json[128];
+                snprintf(json, sizeof(json),
+                "{\"type\":\"OUT_OF_BOUNDS\",\"ID\":%d,\"data1\":%lu,\"data2\":%lu,\"status\":%i}", -1, millis(), 0, status);
+                Serial.println(json);
+                return; // out of bounds
             }
         } else {
             neopixelWrite(RGB_DATA_PIN, 50, 0, 0); // Red flash for CRC failure (3)

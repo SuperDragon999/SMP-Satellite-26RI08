@@ -137,7 +137,6 @@ def deleteProcessing(id, t):
     database.commit()
     database.close()
 
-
 def readAllData():
     '''
     Read all data in table

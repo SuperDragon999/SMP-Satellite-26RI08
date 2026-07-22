@@ -22,8 +22,8 @@ void setFlag() {
     packetReceived = true;
 }
 
-uint8_t currentSF = 10; // CHANGE BEFORE EACH TEST
-float currentBW = 125; // CHANGE BEFORE EACH TEST
+uint8_t currentSF = 8; // CHANGE BEFORE EACH TEST
+float currentBW = 500; // CHANGE BEFORE EACH TEST
 
 struct SatellitePayload {
     uint8_t identifier;

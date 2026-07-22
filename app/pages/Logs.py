@@ -118,7 +118,7 @@ if not df_manage.empty:
                     
                     if not match.empty:
                         # Execute database removal
-                        deleteToA(int(input_id), int(input_time)) # type: ignore
+                        deleteProcessing(int(input_id), int(input_time)) # type: ignore
 
                         st.success(f"Success!")
                         st.rerun()

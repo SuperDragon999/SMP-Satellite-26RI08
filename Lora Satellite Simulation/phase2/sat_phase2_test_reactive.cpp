@@ -129,7 +129,6 @@ const double dopplerOffsets[] = { 22000.9729, 21998.7473, 21996.4707, 21994.1424
   -21964.9441, -21967.8823, -21970.7618, -21973.5830, -21976.3469,
   -21979.0541, -21981.7051, -21984.3008, -21986.8417, -21989.3286,
   -21991.7619, -21994.1424, -21996.4707, -21998.7473 };
-unsigned long passStartTime;
 
 uint8_t satSF = 10;
 float satBW = 125;
@@ -178,7 +177,7 @@ void setup() {
     }
     
     neopixelWrite(RGB_DATA_PIN, 0, 0, 0);
-    passStartTime = millis();
+    radio.standby(); // clears any stuck rx registers
 }
 
 bool reconfigureLoRa(uint8_t newSF, uint16_t newBW) {
@@ -213,8 +212,6 @@ void loop() {
     if (packetIndex > 559){
         return;
     } else {
-        radio.standby(); // clears any stuck rx registers
-
         double currentOffset = dopplerOffsets[packetIndex];
         double compensatedFreq = 915.0 + (currentOffset / 1000000.0);
         radio.setFrequency((float)compensatedFreq); // Can only increase in steps of 61 Hz
@@ -236,9 +233,9 @@ void loop() {
         unsigned long toa = txEndTime - txStartTime;
 
         if (txState == RADIOLIB_ERR_NONE) {
-            // neopixelWrite(RGB_DATA_PIN, 0, 0, 20); // Blue indicates down-link transmission confirmed
-            // delay(20);
-            // neopixelWrite(RGB_DATA_PIN, 0, 0, 0);
+            neopixelWrite(RGB_DATA_PIN, 0, 0, 20); // Blue indicates down-link transmission confirmed
+            delay(20);
+            neopixelWrite(RGB_DATA_PIN, 0, 0, 0);
             char json[128];
             snprintf(json, sizeof(json),
             "{\"ID\":%ld,\"time\":%lu}", packetIndex, toa);

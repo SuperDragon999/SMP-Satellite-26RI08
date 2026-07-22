@@ -33,9 +33,7 @@ uint8_t currentSF = 10;
 float currentBW = 125;
 
 volatile long long lastPacketTime = 0;
-volatile long long lastError = 0;
 volatile long int count;
-volatile bool link_down = false;
 
 SatellitePayload rxData;
 
@@ -254,7 +252,7 @@ void setup() {
 
     radio.setPacketReceivedAction(setFlag);
     radio.startReceive();
-    lastPacketTime = millis(); // Initialize time here to prevent startup errors
+    lastPacketTime = millis(); // Initialize time here to prevent startup link errors
 }
 
 constexpr float TX_POWER_DBM = 22.0;
@@ -323,21 +321,18 @@ int evaluatelinkConstraints(uint32_t secondIdx) {
     return 0; // everything passes
 }
 
-
 //statuses: 0 pass, 1 theoretical link fail, 2 theoretical doppler fail, 3 actual crc error, 4 actual link error
 void loop() {
     if (packetReceived) {
         packetReceived = false;
-
         int state = radio.readData((uint8_t*)&rxData, sizeof(rxData));
+        lastPacketTime = millis();
 
-        radio.startReceive();
         if (state == RADIOLIB_ERR_NONE && rxData.identifier == 1) {
-            link_down = false;
-            uint32_t currentSecond = rxData.messageID;
-            int status = evaluatelinkConstraints(currentSecond);
-
+            uint32_t t = rxData.messageID;
+            int status = evaluatelinkConstraints(t);
             if (status == 0){
+                // passes link constraints
                 char json[128];
                 snprintf(json, sizeof(json),
                 "{\"type\":\"PACKET\",\"ID\":%d,\"data1\":%lu,\"data2\":%lu,\"status\":%i}",
@@ -346,35 +341,27 @@ void loop() {
                 rxData.telemetry2,
                 status);
                 Serial.println(json);
-
-                lastPacketTime = millis();
-                neopixelWrite(RGB_DATA_PIN, 0, 50, 0); // Green flashes indicate a complete successful track
-                delay(25);
-                neopixelWrite(RGB_DATA_PIN, 0, 0, 0);
             } else if (status == 1){
-                // force link err
-                lastPacketTime = millis(); // Mock error still counts a packet
-                neopixelWrite(RGB_DATA_PIN, 50, 0, 50); // Steady purple signifies connection loss
-                delay(25);
-                neopixelWrite(RGB_DATA_PIN, 0, 0, 0);
+                // mock link err
                 char json[128];
                 snprintf(json, sizeof(json),
-                "{\"type\":\"LINK_ERR\",\"ID\":%d,\"data1\":%lu,\"data2\":%lu,\"status\":%i}", -2, millis(), rxData.messageID, status);
+                "{\"type\":\"LINK_ERR\",\"ID\":%d,\"data1\":%lu,\"data2\":%lu,\"status\":%i}", -2, millis(), 0, status);
                 Serial.println(json);
             } else if (status == 2){
-                // force crc failure
-                lastPacketTime = millis();
-                neopixelWrite(RGB_DATA_PIN, 50, 0, 0); // Red flash for CRC failure
-                delay(25);
-                neopixelWrite(RGB_DATA_PIN, 0, 0, 0);
+                // mock crc failure
                 char json[128];
                 snprintf(json, sizeof(json),
                 "{\"type\":\"DATA_ERR\",\"ID\":%d,\"data1\":%lu,\"data2\":%lu,\"status\":%i}", -1, millis(), 0, status);
-                Serial.println(json);                
+                Serial.println(json);
+            } else if (status == -1){
+                char json[128];
+                snprintf(json, sizeof(json),
+                "{\"type\":\"OUT_OF_BOUNDS\",\"ID\":%d,\"data1\":%lu,\"data2\":%lu,\"status\":%i}", -1, millis(), 0, status);
+                Serial.println(json);
+                return; // out of bounds
             }
         } else {
-            lastPacketTime = millis();
-            neopixelWrite(RGB_DATA_PIN, 50, 0, 0); // Red flash for CRC failure
+            neopixelWrite(RGB_DATA_PIN, 50, 0, 0); // Red flash for CRC failure (3)
             delay(25);
             neopixelWrite(RGB_DATA_PIN, 0, 0, 0);
             char json[128];
@@ -384,28 +371,11 @@ void loop() {
         }
     }
 
-    if (millis() - lastPacketTime > 1000) {
-        if (!link_down){
-            link_down = true;
-            lastError = millis();
-            neopixelWrite(RGB_DATA_PIN, 50, 0, 50); // Steady purple signifies connection loss
-            delay(25);
-            neopixelWrite(RGB_DATA_PIN, 0, 0, 0);
-            char json[128];
-            snprintf(json, sizeof(json),
-            "{\"type\":\"LINK_ERR\",\"ID\":%d,\"data1\":%lu,\"data2\":%lu,\"status\":%i}", -2, millis(), 0, 4);
-            Serial.println(json);
-        } else {
-            if (millis() - lastError > 1000){
-                lastError = millis();
-                neopixelWrite(RGB_DATA_PIN, 50, 0, 50); // Steady purple signifies connection loss
-                delay(25);
-                neopixelWrite(RGB_DATA_PIN, 0, 0, 0);
-                char json[128];
-                snprintf(json, sizeof(json),
-                "{\"type\":\"LINK_ERR\",\"ID\":%d,\"data1\":%lu,\"data2\":%lu,\"status\":%i}", -2, millis(), 0, 4);
-                Serial.println(json);
-            }          
-        }   
+    if (millis() - lastPacketTime >= 1000) {
+        char json[128];
+        snprintf(json, sizeof(json),
+        "{\"type\":\"LINK_ERR\",\"ID\":%d,\"data1\":%lu,\"data2\":%lu,\"status\":%i}", -2, millis(), 0, 4);
+        Serial.println(json);
+        lastPacketTime = millis();
     }
 }

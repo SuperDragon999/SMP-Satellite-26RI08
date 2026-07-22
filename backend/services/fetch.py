@@ -29,6 +29,8 @@ async def gnd_worker(queue):
             elif data_type == "ALGORITHM_OUTPUT":
                 with open("backend/storage/algorithm_output.txt", "a") as f:
                     f.write(json.dumps(job))
+            elif data_type == "OUT_OF_BOUNDS":
+                print("[WARNING] OUT OF BOUNDS PACKET, STOP RECORDING \n\n")
         except Exception as e:
             print(f"[-] Database write error: {e}")
         finally:
