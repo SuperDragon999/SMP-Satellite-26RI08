@@ -28,7 +28,7 @@ async def gnd_worker(queue):
                     await asyncio.to_thread(addEntry, job["ID"], job["type"], job["data1"], job["data2"], job["status"])
             elif data_type == "ALGORITHM_OUTPUT":
                 with open("backend/storage/algorithm_output.txt", "a") as f:
-                    f.write(json.dumps(job))
+                    f.write(json.dumps(job) + "\n")
             elif data_type == "OUT_OF_BOUNDS":
                 print("[WARNING] OUT OF BOUNDS PACKET, STOP RECORDING \n\n")
         except Exception as e:

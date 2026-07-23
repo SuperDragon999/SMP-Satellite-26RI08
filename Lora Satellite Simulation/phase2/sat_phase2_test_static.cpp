@@ -129,11 +129,10 @@ const double dopplerOffsets[] = { 22000.9729, 21998.7473, 21996.4707, 21994.1424
   -21979.0541, -21981.7051, -21984.3008, -21986.8417, -21989.3286,
   -21991.7619, -21994.1424, -21996.4707, -21998.7473 };
 
-const int numSteps = 800;
 unsigned long passStartTime;
 
-uint8_t satSF = 7;
-float satBW = 500;
+uint8_t satSF = 12;
+float satBW = 250;
 
 void setup() {
     Serial.begin(921600);
@@ -184,7 +183,7 @@ void loop() {
     unsigned long elapsed = (millis() - passStartTime) / 1000;
     
     int index = elapsed;
-    if (index >= 560) index = 559; // Absolute safety boundary guard
+    if (index >= 560) return;
     
     radio.standby(); // clears any stuck rx registers
 

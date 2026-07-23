@@ -279,16 +279,21 @@ struct LinkConfig {
     float bw;
 };
 const LinkConfig operationalModes[] = {
-    {7, 500.0},
-    {7, 250.0},
-    {7, 125.0},
-    {8, 500.0},
-    {9, 500.0},
-    {10, 250.0},
-    {10, 125.0}
+    //Fastest to slowest
+    {8, 500.0}, // 3452.2
+    {7, 250.0}, // 3177.3
+    {9, 500.0}, // 2158.9
+    {8, 250.0}, // 1951.6
+    {7, 125.0}, // 1779.9
+    {10, 500.0}, // 1163.5
+    {9, 250.0}, // 1163.2
+    {8, 125.0}, // 1043.0
+    {10, 250.0}, // 605.29
+    {9, 125.0}, // 605.19
+    {10, 125.0} // 308.91
 };
-const uint8_t totalModes = 4;
-uint8_t activeModeIdx = 3;
+const uint8_t totalModes = 11;
+uint8_t activeModeIdx = 10;
 
 // Get simulated snr and rssi
 float calculateFSPL(double distanceMeters){
@@ -298,7 +303,7 @@ float calculateFSPL(double distanceMeters){
 }
 
 float getSimulatedRSSI(uint32_t secondIdx){
-    if (secondIdx >= 559)
+    if (secondIdx > 559)
         return -150.0;
 
     float fspl = calculateFSPL(distances[secondIdx]);
@@ -316,14 +321,20 @@ double getSimulatedSNR(uint32_t secondIdx, double bwkHz){
 
 // Link assessment function
 int evaluatelinkConstraints(uint32_t secondIdx) {
-    if (secondIdx >= 559) return -1; // out of bounds
+    if (secondIdx > 559) return -1; // out of bounds
 
     double currentRate = abs(dopplerRates[secondIdx]);
     double currentDistance = distances[secondIdx];
 
     // Doppler Rate Assessment
     double bwHz = currentBW * 1000.0;
-    double dopplerLimit = 0.25 * (pow(bwHz, 2) / (double)(1ULL << (2 * currentSF)));
+    double dopplerLimit;
+    if ((currentSF == 12 && bwHz == 125) || (currentSF == 12 && bwHz == 250) || (currentSF == 11 && bwHz == 125)){
+        dopplerLimit = (16.0/3.0) * (pow(bwHz, 2) / (double)(1ULL << (currentSF)));
+    } else {
+        dopplerLimit = (1.0/3.0) * (pow(bwHz, 2) / (double)(1ULL << (currentSF)));
+    }
+    
     if (currentRate > dopplerLimit) {
         return 2; // Fail doppler rate assessment 
     }
@@ -351,10 +362,9 @@ LinkConfig react(float snr) {
 
         float predictedSNR = snr - deltaNoise;
 
-        float margin =
-            predictedSNR - requiredSNR(candidate.sf);
+        float margin = predictedSNR - requiredSNR(candidate.sf);
 
-        if (margin >= 2.00f) {
+        if (margin >= 1.50f) {
             activeModeIdx = i;
             return candidate;
         }
@@ -406,12 +416,16 @@ void loop() {
         packetReceived = false;
         int state = radio.readData((uint8_t*)&rxData, sizeof(rxData));
         lastPacketTime = millis();
+        neopixelWrite(RGB_DATA_PIN, 0, 0, 0);
 
         if (state == RADIOLIB_ERR_NONE && rxData.identifier == 1) {
             uint32_t t = rxData.messageID;
             int status = evaluatelinkConstraints(t);
             if (status == 0){
                 // passes link constraints
+                neopixelWrite(RGB_DATA_PIN, 0, 50, 0);
+                delay(20);
+                neopixelWrite(RGB_DATA_PIN, 0, 0, 0);
                 snr = getSimulatedSNR(t, currentBW);
                 char json[128];
                 snprintf(json, sizeof(json),
@@ -430,6 +444,9 @@ void loop() {
                 sendAdaptivePacket(recommendedMode);
             } else if (status == 1){
                 // mock link err
+                neopixelWrite(RGB_DATA_PIN, 50, 50, 0);
+                delay(20);
+                neopixelWrite(RGB_DATA_PIN, 0, 0, 0);
                 char json[128];
                 snprintf(json, sizeof(json),
                 "{\"type\":\"LINK_ERR\",\"ID\":%d,\"data1\":%lu,\"data2\":%lu,\"status\":%i}", -2, millis(), 0, status);
@@ -441,6 +458,9 @@ void loop() {
                 }
             } else if (status == 2){
                 // mock crc failure
+                neopixelWrite(RGB_DATA_PIN, 50, 0, 0);
+                delay(20);
+                neopixelWrite(RGB_DATA_PIN, 0, 0, 0);
                 char json[128];
                 snprintf(json, sizeof(json),
                 "{\"type\":\"DATA_ERR\",\"ID\":%d,\"data1\":%lu,\"data2\":%lu,\"status\":%i}", -1, millis(), 0, status);
@@ -451,6 +471,7 @@ void loop() {
                     radio.setSpreadingFactor(10);
                 }
             } else if (status == -1){
+                neopixelWrite(RGB_DATA_PIN, 50, 50, 50);
                 char json[128];
                 snprintf(json, sizeof(json),
                 "{\"type\":\"OUT_OF_BOUNDS\",\"ID\":%d,\"data1\":%lu,\"data2\":%lu,\"status\":%i}", -1, millis(), 0, status);
@@ -458,8 +479,9 @@ void loop() {
                 return; // out of bounds
             }
         } else {
-            neopixelWrite(RGB_DATA_PIN, 50, 0, 0); // Red flash for CRC failure (3)
-            delay(25);
+            // data corruption
+            neopixelWrite(RGB_DATA_PIN, 50, 0, 0); 
+            delay(20);
             neopixelWrite(RGB_DATA_PIN, 0, 0, 0);
             char json[128];
             snprintf(json, sizeof(json),
@@ -475,6 +497,7 @@ void loop() {
     }
 
     if (millis() - lastPacketTime >= 1100) {
+        neopixelWrite(RGB_DATA_PIN, 50, 0, 50);
         char json[128];
         snprintf(json, sizeof(json),
         "{\"type\":\"LINK_ERR\",\"ID\":%d,\"data1\":%lu,\"data2\":%lu,\"status\":%i}", -2, millis(), 0, 4);

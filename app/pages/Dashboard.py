@@ -5,19 +5,21 @@ from backend.storage.db_commands import *
 from backend.storage.setup import *
 from pathlib import Path
 
-st.title('TT&C Dashboard')
+st.title('Experiment Dashboard')
 
 project_root = Path(__file__).resolve().parents[2]
 config_path = project_root / "config.json"
 data_dir = project_root / "backend" / "storage" / "data"
 available_dbs = sorted([f.stem for f in data_dir.glob("*.db")]) if data_dir.exists() else []
 
-# 2. Read Baseline Config
+state = get_record()
+mode = get_mode()
+
 with open(config_path, "r") as f:
     config = json.load(f)
 
 active_db = config.get("db_name")
-current_port = config.get("serial_port", "COM4")
+current_port = config.get("serial_port")
 
 def get_db_meta(name):
     """Queries the internal DB layer directly for operational context."""
@@ -30,42 +32,39 @@ def get_db_meta(name):
     finally:
         conn.close()
 
-with st.expander("Database selector", expanded=True):
-    selected_db = st.selectbox(
-        "Select active database:", 
-        options=available_dbs, 
-        index=available_dbs.index(active_db) if active_db in available_dbs else 0
-    )
-    
-    phase, mode = get_db_meta(selected_db)
-    
-    # If the target database is missing internal metadata, collect it inline
-    if phase is None or mode is None:
-        st.warning("Database parameters not initialized.")
-        phase = st.selectbox("Experimental Phase:", [1, 2], key="p_sel")
-        mode = st.radio("System Mode:", ["SAT", "GND"], key="m_sel")
-        
-        if st.button("Initialize"):
-            conn = sqlite3.connect(data_dir / f"{selected_db}.db")
-            setup(conn, 1 if mode == "SAT" else 0, phase)
-            set_mode(mode)
-            conn.close()
+if not state:
+    with st.expander("Database selector", expanded=True):
+        selected_db = st.selectbox(
+            "Select active database:", 
+            options=available_dbs, 
+            index=available_dbs.index(active_db) if active_db in available_dbs else 0
+        )
+        phase, mode = get_db_meta(selected_db)
+        # If the target database is missing internal metadata, collect it inline
+        if phase is None or mode is None:
+            st.warning("Database parameters not initialized.")
+            phase = st.selectbox("Experimental Phase:", [1, 2], key="p_sel")
+            mode = st.radio("System Mode:", ["SAT", "GND"], key="m_sel")
             
-            # Commit new config.json
-            with open(config_path, "w") as f:
-                json.dump({"db_name": selected_db, "serial_port": current_port}, f, indent=4)
-            st.rerun()
-        st.stop()
+            if st.button("Initialize"):
+                conn = sqlite3.connect(data_dir / f"{selected_db}.db")
+                setup(conn, 1 if mode == "SAT" else 0, phase)
+                set_mode(mode)
+                conn.close()
+                
+                # Commit new config.json
+                with open(config_path, "w") as f:
+                    json.dump({"db_name": selected_db, "serial_port": current_port}, f, indent=4)
+                st.rerun()
+            st.stop()
 
-if selected_db != active_db:
-    with open(config_path, "w") as f:
-        json.dump({"db_name": selected_db, "serial_port": current_port}, f, indent=4)
-    st.rerun()
+    if selected_db != active_db:
+        with open(config_path, "w") as f:
+            json.dump({"db_name": selected_db, "serial_port": current_port}, f, indent=4)
+        st.rerun()
 
-st.info(f"Connected: **{selected_db}.db** | Phase: {phase} | Port: {current_port}")
-
-state = get_record()
-mode = get_mode()
+phase, mode = get_db_meta(active_db)
+st.info(f"Connected: **{active_db}.db** | Phase: {phase} | Port: {current_port}")
 
 col1, col2 = st.columns([0.5, 0.5], vertical_alignment="center")
 with col1:

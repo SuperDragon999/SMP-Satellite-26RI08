@@ -77,7 +77,7 @@ if not df_manage.empty:
                 ])
                 
                 # The button is disabled unless every parameter is filled and the lock is checked
-                if st.button("Execute Deletion Routine", type="primary", disabled=not (all_fields_filled and safety_lock)):
+                if st.button("Execute Deletion", type="primary", disabled=not (all_fields_filled and safety_lock)):
                     
                     # Query our local dataframe to see if this exact entry actually exists
                     match = df_manage[
@@ -97,7 +97,7 @@ if not df_manage.empty:
                             int(input_d2), # type: ignore
                             float(input_status) if phase == 1 else int(input_status) # type: ignore
                         )
-                        st.success(f"Success!")
+                        st.toast(f"Entry {input_id} deleted!", icon="🗑️")
                         st.rerun()
                     else:
                         st.error("Deletion Failed: No record in the database matches that exact combination of parameters. Verify your inputs.")
@@ -111,7 +111,7 @@ if not df_manage.empty:
                 safety_lock = st.checkbox("I confirm I want to wipe this entry from the database.")
                 
                 # The button only executes if the inputs are filled and safety lock is ticked
-                if st.button("Execute Deletion Routine", type="primary", disabled=not (input_id is not None and input_time is not None and safety_lock)):
+                if st.button("Execute Deletion", type="primary", disabled=not (input_id is not None and input_time is not None and safety_lock)):
                     
                     # Double check if the provided parameters actually exist
                     match = df_manage[(df_manage["ID"] == input_id) & (df_manage["time"] == input_time)]
@@ -120,7 +120,7 @@ if not df_manage.empty:
                         # Execute database removal
                         deleteProcessing(int(input_id), int(input_time)) # type: ignore
 
-                        st.success(f"Success!")
+                        st.toast(f"Entry {input_id} deleted!", icon="🗑️")
                         st.rerun()
                     else:
                         st.error("Deletion Failed: No record in the database matches that exact ID and Time combination. Check your inputs.")

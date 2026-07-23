@@ -22,7 +22,7 @@ void setFlag() {
     packetReceived = true;
 }
 
-uint8_t currentSF = 8; // CHANGE BEFORE EACH TEST
+uint8_t currentSF = 10; // CHANGE BEFORE EACH TEST
 float currentBW = 500; // CHANGE BEFORE EACH TEST
 
 struct SatellitePayload {
@@ -124,7 +124,7 @@ void loop() {
         }
     }
 
-    if (millis() - lastPacketTime > 2500) {
+    if (millis() - lastPacketTime >= 2600) {
         if (!link_down){
             link_down = true;
             lastError = millis();
@@ -136,7 +136,7 @@ void loop() {
             "{\"type\":\"LINK_ERR\",\"ID\":%d,\"data1\":%lu,\"data2\":%lu,\"snr\":%.2f}", -2, millis(), 0, 0.00);
             Serial.println(json);
         } else {
-            if (millis() - lastError > 2500){
+            if (millis() - lastError >= 2500){
                 lastError = millis();
                 neopixelWrite(RGB_DATA_PIN, 50, 0, 50); // Steady purple signifies absolute connection loss
                 delay(25);
